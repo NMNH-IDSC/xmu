@@ -1,0 +1,7 @@
+# Package requirements
+lxml
+pyyaml
+
+# ReadTheDocs requirements
+m2r2
+Sphinx~=4.3.2
