@@ -7,10 +7,17 @@ institutions. This package was developed in the Department of Mineral
 Sciences at the Smithsonian National Museum of Natural History to
 streamline the process of getting data into and out of EMu.
 
+In addition to the instructions below, a guide and API reference are
+available in the [documentation](https://xmu.readthedocs.io/en/latest/).
+
 Install
 -------
 
-Install from the GitHub repository using git and pip:
+Install xmu with pip:
+
+    pip install xmu
+
+Or install from the GitHub repository using git and pip:
 
     git clone https://github.com/adamancer/xmu
     cd xmu
@@ -51,11 +58,11 @@ for rec in reader:
       "EmuInteger": 100,
       "EmuFloat": 1.2,
       "EmuDate": "1970-01-01",             # dates are strings or datetime.date
-      "EmuRef": {"irn": 1234567}           # references are dicts
+      "EmuRef": {"irn": 1234567},          # references are dicts
       "EmuTable_tab": ["Row 1", "Row 2"],  # tables are lists
       "EmuRef_tab": [{"irn": 1234567}],    # ref tables are lists of dicts
-      "EmuNested_nesttab": [["Nested"]]    # nested tables are lists of lists
-      "EmuBadKey": ["Bad format"]          # bad keys or formats throw an error
+      "EmuNested_nesttab": [["Nested"]],   # nested tables are lists of lists
+      "EmuBadKey": ["Bad format"],         # bad keys or formats throw an error
     }, module=reader.module)
 
     # Create a list of records to import
