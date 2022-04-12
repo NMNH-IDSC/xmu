@@ -8,6 +8,8 @@ import zipfile
 
 from lxml import etree
 
+from .utils import is_nesttab, is_nesttab_inner, is_ref, is_ref_tab, is_tab
+
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +241,7 @@ class EMuReader:
                             obj.append(text)
 
                     # Add a reference
-                    elif child.tag == "tuple" and name.endswith("Ref"):
+                    elif child.tag == "tuple" and is_ref(name) and not is_tab(name):
                         obj[name] = {}
                         new_elems.append((obj[name], name, child))
 
@@ -253,9 +255,22 @@ class EMuReader:
                             new_elems.append((obj[-1], name, child))
 
                     # Add a row to a table
-                    elif child.tag == "tuple" and parent_name.endswith("Ref_tab"):
+                    elif (
+                        child.tag == "tuple"
+                        and is_ref_tab(parent_name)
+                        and not is_nesttab(parent_name)
+                        and not is_nesttab_inner(parent_name)
+                    ):
                         obj.append({})
                         new_elems.append((obj[-1], name, child))
+
+                    # Add an empty row to a nested table
+                    elif (
+                        child.tag == "tuple"
+                        and is_nesttab(parent_name)
+                        and not len(child)
+                    ):
+                        obj.append(None)
 
                     elif child.tag == "tuple":
                         new_elems.append((obj, name, child))
@@ -381,7 +396,7 @@ class _ByteDecoder:
         self._stream.close()
 
 
-def write_import(records, path):
+def write_import(records, path, **kwargs):
     """Writes records to an EMu import file
 
     Parameters
@@ -390,12 +405,14 @@ def write_import(records, path):
         list of EMuRecords to be imported
     path : str
         path to write the import file
+    kwargs :
+        any keyword argument accepted by the to_xml() method of the record class
     """
     root = etree.Element("table")
     root.set("name", records[0].module)
 
     for rec in records:
-        rec.to_xml(root)
+        rec.to_xml(root, **kwargs)
 
     for i, rec in enumerate(root):
         rec.addprevious(etree.Comment(f"Row {i + 1}"))

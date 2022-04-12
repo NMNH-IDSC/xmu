@@ -640,10 +640,10 @@ class EMuColumn(list):
                 tup.set("row", mod)
                 if row_ids and mod in ("+", "-"):
                     tup.set("group", row_ids[i])
-            try:
-                child.to_xml(tup, is_update=is_update)
-            except AttributeError:
-                if not is_ref(self.field):
+            if child:
+                try:
+                    child.to_xml(tup, is_update=is_update)
+                except AttributeError:
                     name = strip_tab(self.field)
                     atom = etree.SubElement(tup, "atom")
                     atom.set("name", name)
@@ -1124,7 +1124,7 @@ class EMuRecord(dict):
                 ref_tup = etree.SubElement(root, "tuple")
                 ref_tup.set("name", key)
                 val.to_xml(ref_tup, is_update=is_update)
-            elif val or is_update:
+            elif val or is_update or is_ref(self.field):
                 atom = etree.SubElement(root, "atom")
                 atom.set("name", key)
                 atom.text = str(val) if val else ""
