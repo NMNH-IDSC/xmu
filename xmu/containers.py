@@ -638,13 +638,14 @@ class EMuColumn(list):
             # Add group and row indicators for updates
             if mod:
                 tup.set("row", mod)
-                if row_ids and mod in ("+", "-"):
+                if row_ids and mod == "+":
                     tup.set("group", row_ids[i])
             if child:
                 try:
                     child.to_xml(tup, is_update=is_update)
                 except AttributeError:
-                    name = strip_tab(self.field)
+                    # Interpret an atomic value inside a reference table as an irn
+                    name = "irn" if is_ref(self.field) else strip_tab(self.field)
                     atom = etree.SubElement(tup, "atom")
                     atom.set("name", name)
                     atom.text = str(child) if child else ""
@@ -1106,8 +1107,8 @@ class EMuRecord(dict):
                     except KeyError:
                         pass
                     else:
-                        # Include all columns when appending or prepending
-                        if key.endswith(("(+)", "(-)")):
+                        # Include all columns when appending
+                        if key.endswith("(+)"):
                             grid.add_columns()
                         grid.pad()
                         row_ids = [r.row_id() for r in grid]
