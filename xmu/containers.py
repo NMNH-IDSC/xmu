@@ -693,7 +693,7 @@ class EMuRow(MutableMapping):
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
         self.fill_value = fill_value
-        self._index = index
+        self.index = index
 
         # Use path to drill down to the correct parent record
         path = _split_path(path)[:-1]
@@ -702,7 +702,12 @@ class EMuRow(MutableMapping):
         self._rec = rec
 
     def __str__(self):
-        row = {c: self._rec[c][self._index] for c in self.columns}
+        try:
+            row = {c: self._rec[c][self.index] for c in self.columns}
+        except IndexError:
+            raise IndexError(
+                "One or more columns has no data for this row. Use pad() on the parent grid to prevent this error."
+            )
         return f"{self.__class__.__name__}({row})"
 
     def __repr__(self):
@@ -715,10 +720,10 @@ class EMuRow(MutableMapping):
         return len(self.columns)
 
     def __setitem__(self, key, val):
-        self._rec[key][self._index] = val
+        self._rec[key][self.index] = val
 
     def __getitem__(self, key):
-        return self._rec[key][self._index]
+        return self._rec[key][self.index]
 
     def __delitem__(self, key):
         self[key] = self.fill_value
@@ -736,7 +741,7 @@ class EMuRow(MutableMapping):
 
     def row_id(self):
         """Calculates an identifier based on the index and content of a row"""
-        val = str(self._index) + str(self)
+        val = str(self.index) + str(self)
         return c_uint64(hash(val)).value.to_bytes(8, "big").hex()
 
 
