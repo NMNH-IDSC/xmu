@@ -1147,6 +1147,10 @@ def _coerce_values(parent, child, key=None):
         module = parent.module
         field = parent.field
 
+    # Validate field if schema has been loaded
+    if parent.schema and parent.schema.validate_paths:
+        field_info = parent.schema.get_field_info(module, key if key else field)
+
     # Label inner nested tables
     if is_nesttab(field) and not isinstance(parent, dict_class):
         field = f"{strip_mod(field)}_inner"
