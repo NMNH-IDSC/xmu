@@ -1,7 +1,7 @@
 """Reads and writes XML for Axiell EMu"""
 from .containers import EMuColumn, EMuConfig, EMuGrid, EMuRow, EMuRecord, EMuSchema
 from .io import EMuReader, write_import
-from .types import EMuDate, EMuFloat, EMuType
+from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
 from .utils import (
     get_mod,
     has_mod,

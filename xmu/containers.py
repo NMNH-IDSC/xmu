@@ -15,7 +15,7 @@ from lxml import etree
 import yaml
 
 from .io import EMuReader
-from .types import EMuDate, EMuFloat
+from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
 from .utils import (
     is_ref,
     is_nesttab,
@@ -1184,23 +1184,31 @@ def _coerce_values(parent, child, key=None):
     # Coerce non-list, non-dict data to an appropriate type if a schema is defined
     elif parent.schema and not isinstance(child, (dict, list)):
 
-        dtype = parent.schema.get_field_info(
-            module, key if key else field, visible_only=False
-        )["DataType"]
+        dtype = field_info["DataType"]
 
         # Coerce empty values to empty strings in Text fields. Exclude
         # inner nested tables so that empty rows can be signified by None.
-        if dtype == "Text" and child is None and not is_nesttab_inner(field):
+        if (
+            dtype in ("Text", "String")
+            and child is None
+            and not is_nesttab_inner(field)
+        ):
             child = ""
 
         elif child is not None:
             try:
                 child = {
+                    "Currency": str,
                     "Date": EMuDate,
                     "Float": EMuFloat,
                     "Integer": int,
+                    "Latitude": EMuLatitude,
+                    "Longitude": EMuLongitude,
+                    "String": str,
                     "Text": str,
-                    "Time": str,
+                    "Time": EMuTime,
+                    "UserName": str,
+                    "UserId": str,
                 }[dtype](child)
             except (TypeError, ValueError) as exc:
                 raise TypeError(
