@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 import os
 import zipfile
 
@@ -10,10 +10,13 @@ from xmu import (
     EMuConfig,
     EMuDate,
     EMuFloat,
+    EMuLatitude,
+    EMuLongitude,
     EMuReader,
     EMuRecord,
     EMuRow,
     EMuSchema,
+    EMuTime,
     get_mod,
     has_mod,
     is_nesttab,
@@ -97,6 +100,20 @@ use utf8;
 
                 ItemName => 'Float',
 			},
+            'EmuLatitude' =>
+			{
+				ColumnName => 'EmuLatitude',
+				DataType => 'Latitude',
+
+				ItemName => 'Latitude',
+			},
+            'EmuLongitude' =>
+			{
+				ColumnName => 'EmuLongitude',
+				DataType => 'Longitude',
+
+				ItemName => 'Longitude',
+			},
             'EmuNestedTable_nesttab' =>
 			{
 				ColumnName => 'EmuNestedTable_nesttab',
@@ -159,6 +176,19 @@ use utf8;
 				DataType => 'Text',
 
 				ItemName => 'Text',
+			},
+            'EmuTime0' =>
+			{
+				ColumnName => 'EmuTime0',
+				DataType => 'Time',
+
+                ItemName => 'Time',
+				ItemFields =>
+				[
+					[ 8, 2, 2 ],
+					[ 8, 2, 2 ],
+					[ 8, 2, 2 ],
+				],
 			},
 			'irn' =>
 			{
@@ -254,11 +284,12 @@ def xml_file(output_dir):
     <atom name="irn">1000000</atom>
     <atom name="EmuText">Text</atom>
     <atom name="EmuFloat">1.0</atom>
+    <atom name="EmuLatitude">45 30 15 N</atom>
+    <atom name="EmuLongitude">-130 10 5 W</atom>
     <tuple name="EmuRef">
       <atom name="irn">1000000</atom>
       <atom name="EmuRefOnly">Text</atom>
     </tuple>
-    <atom name="EmuNotVisible">Text</atom>
     <table name="EmuDate0">
       <tuple>
         <atom name="EmuDate">1970-01-01</atom>
@@ -268,6 +299,17 @@ def xml_file(output_dir):
       </tuple>
       <tuple>
         <atom name="EmuDate">1970</atom>
+      </tuple>
+    </table>
+    <table name="EmuTime0">
+      <tuple>
+        <atom name="EmuTime">9:00</atom>
+      </tuple>
+      <tuple>
+        <atom name="EmuTime">12:00</atom>
+      </tuple>
+      <tuple>
+        <atom name="EmuTime">15:00</atom>
       </tuple>
     </table>
     <table name="EmuTable_tab">
@@ -296,6 +338,8 @@ def xml_file(output_dir):
       </tuple>
     </table>
     <table name="EmuNestedTable_nesttab">
+      <tuple>
+      </tuple>
       <tuple>
         <table name="EmuNestedTable_nesttab_inner">
           <tuple>
@@ -328,13 +372,15 @@ def expected_rec():
         "irn": "1000000",
         "EmuText": "Text",
         "EmuFloat": "1.0",
+        "EmuLatitude": "45 30 15 N",
+        "EmuLongitude": "-130 10 5 W",
         "EmuRef": {"irn": "1000000", "EmuRefOnly": "Text"},
-        "EmuNotVisible": "Text",
         "EmuDate0": ["1970-01-01", "Jan 1970", "1970"],
+        "EmuTime0": ["9:00", "12:00", "15:00"],
         "EmuTable_tab": ["Text", "Text"],
         "EmuTableUngrouped_tab": ["Text"],
         "EmuRef_tab": [{}, {}, {"irn": "1000000", "EmuRefOnly": "Text"}],
-        "EmuNestedTable_nesttab": [["Text"]],
+        "EmuNestedTable_nesttab": [None, ["Text"]],
     }
 
 
@@ -392,10 +438,10 @@ def test_schema_get(schema_file):
     assert schema.get("Schema.emain.columns.EmuInvalid") is None
 
 
-def test_schema_iter_fields(schema_file):
+def test_schema_iterfields(schema_file):
     schema = EMuSchema(schema_file)
     fields = {}
-    for module, field, info in schema.iter_fields():
+    for module, field, info in schema.iterfields():
         fields[(module, field)] = info
     assert list(fields) == [
         ("emain", "EmuClientTable_tab"),
@@ -403,6 +449,8 @@ def test_schema_iter_fields(schema_file):
         ("emain", "EmuDate0"),
         ("emain", "EmuEmpty"),
         ("emain", "EmuFloat"),
+        ("emain", "EmuLatitude"),
+        ("emain", "EmuLongitude"),
         ("emain", "EmuNestedTable_nesttab"),
         ("emain", "EmuNotVisible"),
         ("emain", "EmuRef"),
@@ -411,6 +459,7 @@ def test_schema_iter_fields(schema_file):
         ("emain", "EmuTable_tab"),
         ("emain", "EmuTableUngrouped_tab"),
         ("emain", "EmuText"),
+        ("emain", "EmuTime0"),
         ("emain", "irn"),
         ("eref", "EmuRefOnly"),
         ("eref", "EmuTableInRef_tab"),
@@ -510,13 +559,13 @@ def test_row_from_ungrouped(rec):
 def test_grid_by_index(grid):
     assert grid[0] == {
         "EmuDate0": EMuDate("1970-01-01"),
-        "EmuNestedTable_nesttab": ["Text"],
+        "EmuNestedTable_nesttab": None,
         "EmuRef_tab": {},
         "EmuTable_tab": "Text",
     }
     assert grid[1] == {
         "EmuDate0": EMuDate("Jan 1970"),
-        "EmuNestedTable_nesttab": None,
+        "EmuNestedTable_nesttab": ["Text"],
         "EmuRef_tab": {},
         "EmuTable_tab": "Text",
     }
@@ -557,7 +606,7 @@ def test_grid_del_item(rec):
     grid = rec.grid("EmuTable_tab").pad()
     del grid[0]
     assert rec["EmuDate0"] == [EMuDate("Jan 1970"), EMuDate("1970")]
-    assert rec["EmuNestedTable_nesttab"] == [None, None]
+    assert rec["EmuNestedTable_nesttab"] == [["Text"], None]
     assert rec["EmuRef_tab"] == [{}, {"irn": 1000000, "EmuRefOnly": "Text"}]
     assert rec["EmuTable_tab"] == ["Text", ""]
 
@@ -625,14 +674,13 @@ def test_rec_from_json(xml_file, output_dir, expected_rec):
 
     simple_rec = EMuRecord({"irn": 1234567}, module="emain")
     records = [rec_from_xml] + [simple_rec] * 5000
-    write_import(records, output_dir / "xmldata_5000.xml")
+    write_import(records, output_dir / "xmldata_5000.xml", is_update=False)
 
     xml_path = str(output_dir / "xmldata_5000.xml")
     json_path = str(output_dir / "xmldata_5000.json")
 
     reader = EMuReader(xml_path, json_path=json_path)
     for rec in reader:
-        print(rec)
         rec_from_json = EMuRecord(rec, module=reader.module)
         break
 
@@ -656,7 +704,7 @@ def test_rec_from_zip(xml_file, output_dir, expected_rec):
 
 def test_rec_round_trip(rec, output_dir):
     path = str(output_dir / "import.xml")
-    write_import([rec], path)
+    write_import([rec], path, is_update=False)
     reader = EMuReader(path)
     for rec_ in reader:
         assert EMuRecord(rec_, module=reader.module) == rec
@@ -935,7 +983,7 @@ def test_dtype_date_operations():
     val = EMuDate("Jan 1970")
     assert val + timedelta(days=1) == (EMuDate("1970-01-02"), EMuDate("1970-02-01"))
     assert val - timedelta(days=1) == (EMuDate("1969-12-31"), EMuDate("1970-01-30"))
-    assert EMuDate("1970-01-02") - val == timedelta(days=1)
+    assert EMuDate("1970-01-02") - EMuDate("1970-01-01") == timedelta(days=1)
 
 
 def test_dtype_date_parse_failed():
@@ -955,6 +1003,34 @@ def test_dtype_date_bad_kind(attr):
     date.kind = None
     with pytest.raises(ValueError, match="Invalid kind:"):
         getattr(date, attr)
+
+
+def test_dtype_date_to_datetime():
+    date = EMuDate("1970-01-01")
+    time = EMuTime("15:00")
+    assert date.to_datetime(time) == datetime(1970, 1, 1, 15, 0)
+    assert time.to_datetime(date) == datetime(1970, 1, 1, 15, 0)
+
+
+@pytest.mark.parametrize(
+    "time_string",
+    [
+        "1500",
+        "15:00",
+        "3:00 PM",
+        "0300 PM",
+        "15:00 UTC-0700",
+        "15:00 -0700",
+        "3:00 PM UTC-0700",
+        "3:00 PM -0700",
+        time(hour=15, minute=0),
+        EMuTime("1500"),
+    ],
+)
+def test_dtype_time(time_string):
+    time = EMuTime(time_string)
+    assert time.hour == 15
+    assert time.minute == 0
 
 
 @pytest.mark.parametrize(
@@ -1039,6 +1115,93 @@ def test_dtype_float_no_format():
 def test_dtype_float_contain_no_range():
     with pytest.raises(ValueError, match="EMuFloat is not a range"):
         1 in EMuFloat("0.12")
+
+
+@pytest.mark.parametrize(
+    "val,fmt",
+    [
+        ("45°30'15''N", None),
+        ("45 30 15 North", None),
+        ("N 45 30 15", None),
+        ("45 30.25 N", None),
+        ("45.5042", None),
+        (45.5042, "{:.4f}"),
+    ],
+)
+def test_dtype_latitude(val, fmt):
+    lat = EMuLatitude(val, fmt=fmt)
+    assert float(lat) == pytest.approx(45.5042)
+    assert int(lat) == 45
+    assert lat.to_dec() == "45.5042"
+    assert lat.to_dms() == "45 30 15 N"
+
+
+@pytest.mark.parametrize(
+    "val,fmt",
+    [
+        ("45°30'15''W", None),
+        ("45 30 15 West", None),
+        ("W 45 30 15", None),
+        ("45 30.25 W", None),
+        ("-45.5042", None),
+        (-45.5042, "{:.4f}"),
+    ],
+)
+def test_dtype_longitude(val, fmt):
+    lng = EMuLongitude(val, fmt=fmt)
+    assert float(lng) == pytest.approx(-45.5042)
+    assert int(lng) == -45
+    assert lng.to_dec() == "-45.5042"
+    assert lng.to_dms() == "45 30 15 W"
+
+
+@pytest.mark.parametrize(
+    "val,unc_m,expected_dms,expected_dec",
+    [
+        ("45 30 15 N", 10, "45 30 15 N", "45.5042"),
+        ("45 30 15 N", 20, "45 30 15 N", "45.5042"),
+        ("45 30 15 N", 50, "45 30.3 N", "45.504"),
+        ("45 30 15 N", 90, "45 30.3 N", "45.504"),
+        ("45 30 15 N", 100, "45 30.3 N", "45.504"),
+        ("45 30 15 N", 200, "45 30.3 N", "45.504"),
+        ("45 30 15 N", 500, "45 30 N", "45.50"),
+        ("45 30 15 N", 900, "45 30 N", "45.50"),
+        ("45 30 15 N", 1000, "45 30 N", "45.50"),
+    ],
+)
+def test_dtype_coord_rounding(val, unc_m, expected_dms, expected_dec):
+    lat = EMuLatitude(val)
+    assert lat.to_dms(unc_m) == expected_dms
+    assert lat.to_dec(unc_m) == expected_dec
+
+
+@pytest.mark.parametrize("coord_class", [EMuLatitude, EMuLongitude])
+def test_dtype_coord_invalid(coord_class):
+    with pytest.raises(ValueError, match=r"Invalid coordinate"):
+        coord_class("45 30 15 7.5 N")
+
+
+@pytest.mark.parametrize(
+    "coord_class,val", [(EMuLatitude, "90.1"), (EMuLongitude, "-180.1")]
+)
+def test_dtype_coord_out_of_bounds(coord_class, val):
+    with pytest.raises(ValueError, match=r"Coordinate out of bounds"):
+        coord_class(val)
+
+
+def test_dtype_coord_to_dms_too_precise():
+    with pytest.raises(ValueError, match=r"unc_m cannot be smaller"):
+        EMuLatitude("45 30 15 N").to_dms(1)
+
+
+def test_dtype_coord_to_dec_too_precise():
+    with pytest.raises(ValueError, match=r"unc_m cannot be smaller"):
+        EMuLongitude("45 30 15 E").to_dec(1)
+
+
+def test_dtype_coord_unsigned():
+    with pytest.raises(ValueError, match=r"Could not parse as EMuLatitude"):
+        EMuLatitude("45 30 15")
 
 
 @pytest.mark.parametrize(
