@@ -376,7 +376,7 @@ class EMuSchema(dict):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self, f, **params)
 
-    def iter_fields(self):
+    def iterfields(self):
         """Iterates over all fields in the schema
 
         Yields
