@@ -420,3 +420,31 @@ def write_import(records, path, **kwargs):
     root.getroottree().write(
         path, pretty_print=True, xml_declaration=True, encoding="utf-8"
     )
+
+
+def write_group(records, path, irn=None, name=None):
+    """Writes an import for the egroups module
+
+    Parameters
+    ----------
+    records : list
+        list of EMuRecords, each of which specifies an irn
+    path : str
+        path to write the import file
+    irn : int
+        the irn of an existing egroups record (updates only)
+    name : str
+        the name of the group
+    """
+    if not irn and not name:
+        raise ValueError("Must specify at least one of irn or name for a group")
+    rec = records[0].__class__({
+        "GroupType": "Static",
+        "Module": records[0].module,
+        "Keys_tab": [rec["irn"] for rec in records],
+    }, module="egroups")
+    if irn:
+        rec["irn"] = irn
+    if name:
+        rec["GroupName"] = name
+    write_import([rec], path)
