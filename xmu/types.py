@@ -400,7 +400,7 @@ class EMuCoord(EMuFloat):
             self.verbatim = val.verbatim
             for attr in ("degrees", "minutes", "seconds"):
                 if getattr(val, attr) is not None:
-                    setattr(self, "degrees", getattr(val, attr).copy())
+                    setattr(self, attr, getattr(val, attr).copy())
         else:
             self.degrees = EMuFloat(abs(val), fmt=fmt)
 
