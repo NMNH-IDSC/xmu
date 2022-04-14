@@ -861,9 +861,18 @@ class EMuTime(EMuType):
         fmt_provided = fmt is not None
 
         # Include both naive and timezoned formats
-        fmts = ["%H:%M", "%H%M", "%I%M %p", "%I:%M %p"]
-        fmts.extend([f"{f} %z" for f in fmts[:4]])
-        fmts.extend([f"{f} UTC%z" for f in fmts[:4]])
+        fmts = [
+            "%H:%M",
+            "%H%M",
+            "%I%M %p",
+            "%I:%M %p",
+            "%H:%M:%S",
+            "%I:%M:%S %p",
+        ]
+        num_formats = len(fmts)
+        fmts.extend([f"{f} %z" for f in fmts[:num_formats]])
+        fmts.extend([f"{f} UTC%z" for f in fmts[:num_formats]])
+        fmts.insert(0, "%H:%M:")
 
         if isinstance(val, EMuTime):
             self.value = val.value
@@ -900,7 +909,8 @@ class EMuTime(EMuType):
         if not fmt_provided and val.lstrip("0") != self.strftime(fmt).lstrip("0"):
             raise ValueError(f"Parsing changed value ('{val}' became '{self}')")
 
-        self.format = "%H:%M"  # enforce consistent output format
+        # Enforce a consistent output format
+        self.format = "%H:%M:%S" if "%S" in self.format else "%H:%M"
 
     def __str__(self):
         return self.value.strftime(self.format)
