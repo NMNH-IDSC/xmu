@@ -5,6 +5,7 @@ import os
 import re
 from collections.abc import MutableMapping, MutableSequence
 from ctypes import c_uint64
+from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 from pprint import pformat
@@ -601,7 +602,7 @@ class EMuColumn(list):
     def extend(self, vals):
         super().extend([_coerce_values(self, v) for v in vals])
 
-    def to_xml(self, root=None, row_ids=None, is_update=None):
+    def to_xml(self, root=None, kind=None, row_ids=None):
         """Converts column to XML formatted for EMu
 
         Normally called without specifying arguments.
@@ -610,10 +611,10 @@ class EMuColumn(list):
         ----------
         root : lxml.etree.Element or SubElement
             parent element in the XML tree
+        kind : str
+           kind of XML file. One of "import", "update", or "emu".
         row_ids : tuple
             list of values for the tuple group attribute
-        is_update : bool
-            whether the record is an update
 
         Returns
         -------
@@ -640,15 +641,18 @@ class EMuColumn(list):
                 tup.set("row", mod)
                 if row_ids and mod == "+":
                     tup.set("group", row_ids[i])
-            if child:
-                try:
-                    child.to_xml(tup, is_update=is_update)
-                except AttributeError:
+            try:
+                child.to_xml(tup, kind=kind)
+            except AttributeError:
+                # In an EMu export, empty rows in an outer nested table appear
+                # as an empty tuple. Otherwise tuples always contain one or more
+                # atomic fields, including an empty irn field for references.
+                if _is_not_blank(child) or not is_nesttab(self.field):
                     # Interpret an atomic value inside a reference table as an irn
                     name = "irn" if is_ref(self.field) else strip_tab(self.field)
                     atom = etree.SubElement(tup, "atom")
                     atom.set("name", name)
-                    atom.text = str(child) if child else ""
+                    atom.text = str(child) if _is_not_blank(child) else ""
 
         return root
 
@@ -739,6 +743,11 @@ class EMuRow(MutableMapping):
         ):
             raise ValueError(f"Inconsistent modifier within grid: {cols}")
         return cols
+
+    @property
+    def mod(self):
+        """Returns the modifier suffix needed to update this row in an import"""
+        return f"{self.index + 1}="
 
     def row_id(self):
         """Calculates an identifier based on the index and content of a row"""
@@ -1049,7 +1058,7 @@ class EMuRecord(dict):
 
     def copy(self):
         """Overrides the native dict.copy method to return an objet of this class"""
-        return self.__class__(dict(self).copy(), module=self.module)
+        return self.__class__(deepcopy(dict(self)), module=_get_module(self))
 
     def grid(self, field, **kwargs):
         """Returns the EMuGrid object containing the given field
@@ -1068,7 +1077,7 @@ class EMuRecord(dict):
         """
         return EMuGrid(self, field, **kwargs)
 
-    def to_xml(self, root=None, is_update=None):
+    def to_xml(self, root=None, kind=None):
         """Converts record to XML formatted for EMu
 
         Normally called without specifying arguments.
@@ -1077,27 +1086,32 @@ class EMuRecord(dict):
         ----------
         root : lxml.etree.Element or SubElement
             parent element in the XML tree
-        is_update : bool
-            whether the record is an update. Determined within the function
-            if not given.
+        kind : str
+           kind of XML file. One of "import", "update", or "emu". If not
+           given, assigns "update" if top-level records have irns and "import"
+           if not.
 
         Returns
         -------
         lxml.etree.Element or SubElement
             record as XML
         """
+        kinds = {None, "emu", "import", "update"}
+        if kind not in {None, "emu", "import", "update"}:
+            raise ValueError(f"kind must be one of {kinds}")
+
         if root is None:
             root = etree.Element("tuple")
         elif root.get("name") == self.module:
             root = etree.SubElement(root, "tuple")
 
         # Records containing irns in the top level of the dict are updates
-        if is_update is None:
-            is_update = "irn" in self
+        if kind is None:
+            kind = "update" if "irn" in self else "import"
 
         # Fill in grids and cache row IDs so grids are only checked once
         grids = {}
-        if is_update:
+        if kind == "update":
             for key in list(self):
                 try:
                     grids[key]
@@ -1120,15 +1134,19 @@ class EMuRecord(dict):
                 # If field is part of a grid, pass row identifiers to the
                 # EMuColumn to_xml() method. These will be used to populate the
                 # group attribute in each tuple tag for appends and prepends.
-                val.to_xml(root, row_ids=grids.get(key, None), is_update=is_update)
+                val.to_xml(root, kind=kind, row_ids=grids.get(key, None))
             elif is_ref(key):
                 ref_tup = etree.SubElement(root, "tuple")
                 ref_tup.set("name", key)
-                val.to_xml(ref_tup, is_update=is_update)
-            elif val or is_update or is_ref(self.field):
+                val.to_xml(ref_tup, kind=kind)
+            elif (
+                _is_not_blank(val)
+                or kind in {"emu", "update"}
+                or is_ref(self.field if self.field else "")
+            ):
                 atom = etree.SubElement(root, "atom")
                 atom.set("name", key)
-                atom.text = str(val) if val else ""
+                atom.text = str(val) if _is_not_blank(val) else ""
         return root
 
 
@@ -1149,6 +1167,7 @@ def _coerce_values(parent, child, key=None):
         field = parent.field
 
     # Validate field if schema has been loaded
+    field_info = None
     if parent.schema and parent.schema.validate_paths:
         field_info = parent.schema.get_field_info(module, key if key else field)
 
@@ -1156,10 +1175,15 @@ def _coerce_values(parent, child, key=None):
     if is_nesttab(field) and not isinstance(parent, dict_class):
         field = f"{strip_mod(field)}_inner"
 
-    # Interpret intefers in reference fields as IRNs
-    if is_ref(field) and isinstance(child, int):
-        child = dict_class({"irn": child}, module=parent.module, field=field)
-        return child
+    # Simplify IRN-only references
+    if is_ref(field):
+        # Simplify IRN-only references to integers
+        if isinstance(child, dict) and list(child) == ["irn"]:
+            child = child["irn"]
+
+        # Interpret integers in reference fields as IRNs
+        if isinstance(child, int):
+            return child
 
     # Tables must be list-like
     if (
@@ -1187,12 +1211,10 @@ def _coerce_values(parent, child, key=None):
         child = list_class(child, module=module, field=field)
 
     # Coerce non-list, non-dict data to an appropriate type if a schema is defined
-    elif parent.schema and not isinstance(child, (dict, list)):
-
-        dtype = field_info["DataType"]
-
+    elif field_info and not isinstance(child, (dict, list)):
         # Coerce empty values to empty strings in Text fields. Exclude
         # inner nested tables so that empty rows can be signified by None.
+        dtype = field_info["DataType"]
         if (
             dtype in ("Text", "String")
             and child is None
@@ -1273,6 +1295,11 @@ def _get_module(obj):
     if obj.schema is not None and obj.field is not None and is_ref(obj.field):
         return obj.schema.get_field_info(obj.module, obj.field)["RefTable"]
     return obj.module
+
+
+def _is_not_blank(val):
+    """Tests if value is not blank"""
+    return val or val == 0
 
 
 def _split_path(path):

@@ -223,6 +223,12 @@ class EMuReader:
             for obj, parent_name, elem in elements:
                 for child in elem:
 
+                    # Add an empty rows to a nested table, which do not contain
+                    # child nodes when exported from EMu
+                    if child is None:
+                        obj.append(None)
+                        continue
+
                     # Get field name
                     name = child.get("name")
                     if name is None:
@@ -233,8 +239,8 @@ class EMuReader:
                     if text is not None:
                         text = text.strip()
 
-                    # Add an atomic field with a value
-                    if child.tag == "atom" and (text or not parent_name):
+                    # Add an atomic field
+                    if child.tag == "atom":
                         try:
                             obj[name] = text
                         except TypeError:
@@ -264,13 +270,13 @@ class EMuReader:
                         obj.append({})
                         new_elems.append((obj[-1], name, child))
 
-                    # Add an empty row to a nested table
+                    # Add an empty row to an outer nested table
                     elif (
                         child.tag == "tuple"
                         and is_nesttab(parent_name)
                         and not len(child)
                     ):
-                        obj.append(None)
+                        new_elems.append((obj, name, [None]))
 
                     elif child.tag == "tuple":
                         new_elems.append((obj, name, child))
@@ -410,12 +416,13 @@ def write_import(records, path, **kwargs):
     """
     root = etree.Element("table")
     root.set("name", records[0].module)
+    root.addprevious(etree.Comment(" Data "))
 
     for rec in records:
-        rec.to_xml(root, **kwargs)
+        rec.copy().to_xml(root, **kwargs)
 
     for i, rec in enumerate(root):
-        rec.addprevious(etree.Comment(f"Row {i + 1}"))
+        rec.addprevious(etree.Comment(f" Row {i + 1} "))
 
     root.getroottree().write(
         path, pretty_print=True, xml_declaration=True, encoding="utf-8"
@@ -438,11 +445,14 @@ def write_group(records, path, irn=None, name=None):
     """
     if not irn and not name:
         raise ValueError("Must specify at least one of irn or name for a group")
-    rec = records[0].__class__({
-        "GroupType": "Static",
-        "Module": records[0].module,
-        "Keys_tab": [rec["irn"] for rec in records],
-    }, module="egroups")
+    rec = records[0].__class__(
+        {
+            "GroupType": "Static",
+            "Module": records[0].module,
+            "Keys_tab": [rec["irn"] for rec in records],
+        },
+        module="egroups",
+    )
     if irn:
         rec["irn"] = irn
     if name:

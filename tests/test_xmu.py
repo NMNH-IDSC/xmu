@@ -27,6 +27,7 @@ from xmu import (
     strip_mod,
     strip_tab,
     write_import,
+    write_group,
 )
 
 
@@ -674,7 +675,7 @@ def test_rec_from_json(xml_file, output_dir, expected_rec):
 
     simple_rec = EMuRecord({"irn": 1234567}, module="emain")
     records = [rec_from_xml] + [simple_rec] * 5000
-    write_import(records, output_dir / "xmldata_5000.xml", is_update=False)
+    write_import(records, output_dir / "xmldata_5000.xml", kind="emu")
 
     xml_path = str(output_dir / "xmldata_5000.xml")
     json_path = str(output_dir / "xmldata_5000.json")
@@ -689,7 +690,8 @@ def test_rec_from_json(xml_file, output_dir, expected_rec):
         if not rec_from_json_chunked:
             rec_from_json_chunked = EMuRecord(rec, module=reader.module)
 
-    assert rec_from_json == rec_from_xml == rec_from_json_chunked
+    assert rec_from_json == rec_from_xml
+    assert rec_from_json_chunked == rec_from_xml
 
 
 def test_rec_from_zip(xml_file, output_dir, expected_rec):
@@ -704,10 +706,44 @@ def test_rec_from_zip(xml_file, output_dir, expected_rec):
 
 def test_rec_round_trip(rec, output_dir):
     path = str(output_dir / "import.xml")
-    write_import([rec], path, is_update=False)
+    write_import([rec], path, kind="emu")
     reader = EMuReader(path)
     for rec_ in reader:
         assert EMuRecord(rec_, module=reader.module) == rec
+
+
+def test_rec_round_trip(rec, output_dir):
+    path = str(output_dir / "import.xml")
+    write_import([rec], path, kind="emu")
+    reader = EMuReader(path)
+    for rec_ in reader:
+        assert EMuRecord(rec_, module=reader.module) == rec
+
+
+def test_write_import_invalid_kind(rec, output_dir):
+    with pytest.raises(ValueError, match="kind must be one of"):
+        write_import([rec], str(output_dir / "import.xml"), kind="invalid")
+
+
+def test_group(rec, output_dir):
+    rec.schema.validate_paths = False
+    path = str(output_dir / "group.xml")
+    write_group([rec], path, irn=1234567, name="Group")
+    reader = EMuReader(path)
+    for rec_ in reader:
+        assert rec_ == {
+            "GroupType": "Static",
+            "Module": "emain",
+            "Keys_tab": ["1000000"],
+            "irn": "1234567",
+            "GroupName": "Group",
+        }
+    rec.schema.validate_paths = True
+
+
+def test_group_no_metadata(rec, output_dir):
+    with pytest.raises(ValueError, match="Must specify at least one of irn or name"):
+        write_group([rec], str(output_dir / "group.xml"))
 
 
 def test_col_not_list(rec):
@@ -767,8 +803,8 @@ def test_rec_irn_from_int(rec):
     irn = 1000000
     rec["EmuRef"] = irn
     rec["EmuRef_tab"] = [irn, irn]
-    assert rec["EmuRef"] == {"irn": irn}
-    assert rec["EmuRef_tab"] == [{"irn": irn}, {"irn": irn}]
+    assert rec["EmuRef"] == irn
+    assert rec["EmuRef_tab"] == [irn, irn]
 
 
 def test_rec_getitem_empty_path(rec):

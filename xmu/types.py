@@ -436,6 +436,11 @@ class EMuCoord(EMuFloat):
         """Gets the hemisphere in which a coordinate is located"""
         return self.pos[0] if self._sign > 0 else self.neg[0]
 
+    @property
+    def kind(self):
+        """Gets kind of verbatim coordinate string"""
+        return "decimal" if self.minutes is None else "dms"
+
     def to_dms(self, unc_m=None):
         """Expresses coordinate as degrees-minutes-seconds
 
@@ -452,7 +457,7 @@ class EMuCoord(EMuFloat):
 
         orig_unc_m = self.coord_uncertainty_m()
         if unc_m is None:
-            if self.minutes is not None:
+            if self.kind == "dms":
                 parts = [
                     p if p else 0 for p in (self.degrees, self.minutes, self.seconds)
                 ]
@@ -523,7 +528,7 @@ class EMuCoord(EMuFloat):
         """
         orig_unc_m = self.coord_uncertainty_m()
         if unc_m is None:
-            if self.minutes is None:
+            if self.kind == "decimal":
                 return str(self._sign * self.degrees)
             unc_m = orig_unc_m
 
