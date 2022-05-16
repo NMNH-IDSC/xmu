@@ -745,8 +745,8 @@ class EMuRow(MutableMapping):
         return cols
 
     @property
-    def mod(self):
-        """Returns the modifier suffix needed to update this row in an import"""
+    def replace_mod(self):
+        """Returns the modifier needed to replace a cell in this row in an import"""
         return f"{self.index + 1}="
 
     def row_id(self):

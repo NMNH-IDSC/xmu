@@ -1251,7 +1251,10 @@ def test_dtype_coord_unsigned():
         ("TableFieldRef_tab", True),
         ("TableField_tab(+)", True),
         ("TableField_tab(-)", True),
-        ("TableField_tab(0=)", True),
+        ("TableField_tab(=)", True),
+        ("TableField_tab(1+)", True),
+        ("TableField_tab(12-)", True),
+        ("TableField_tab(123=)", True),
     ],
 )
 def test_is_tab(field, expected):
@@ -1269,7 +1272,10 @@ def test_is_tab(field, expected):
         ("TableFieldRef_tab", False),
         ("TableField_tab(+)", False),
         ("TableField_tab(-)", False),
-        ("TableField_tab(0=)", False),
+        ("TableField_tab(=)", False),
+        ("TableField_tab(1+)", False),
+        ("TableField_tab(12-)", False),
+        ("TableField_tab(123=)", False),
     ],
 )
 def test_is_nesttab(field, expected):
@@ -1287,7 +1293,10 @@ def test_is_nesttab(field, expected):
         ("TableFieldRef_tab", False),
         ("TableField_tab(+)", False),
         ("TableField_tab(-)", False),
-        ("TableField_tab(0=)", False),
+        ("TableField_tab(=)", False),
+        ("TableField_tab(1+)", False),
+        ("TableField_tab(12-)", False),
+        ("TableField_tab(123=)", False),
     ],
 )
 def test_is_nesttab_inner(field, expected):
@@ -1303,7 +1312,12 @@ def test_is_nesttab_inner(field, expected):
         ("TableField_nesttab", False),
         ("TableField_nesttab_inner", False),
         ("TableFieldRef_tab", True),
-        ("TableFieldRef_tab", True),
+        ("TableFieldRef_tab(+)", True),
+        ("TableFieldRef_tab(-)", True),
+        ("TableFieldRef_tab(=)", True),
+        ("TableFieldRef_tab(1+)", True),
+        ("TableFieldRef_tab(12-)", True),
+        ("TableFieldRef_tab(123=)", True),
     ],
 )
 def test_is_ref(field, expected):
@@ -1322,7 +1336,10 @@ def test_is_ref(field, expected):
         ("TableField_tab", False),
         ("TableFieldRef_tab(+)", True),
         ("TableFieldRef_tab(-)", True),
-        ("TableFieldRef_tab(0=)", True),
+        ("TableFieldRef_tab(=)", True),
+        ("TableFieldRef_tab(1+)", True),
+        ("TableFieldRef_tab(12-)", True),
+        ("TableFieldRef_tab(123=)", True),
     ],
 )
 def test_is_ref_tab(field, expected):
@@ -1341,7 +1358,10 @@ def test_is_ref_tab(field, expected):
         ("TableField_tab", "TableField"),
         ("TableField_tab(+)", "TableField"),
         ("TableField_tab(-)", "TableField"),
-        ("TableField_tab(0=)", "TableField"),
+        ("TableField_tab(=)", "TableField"),
+        ("TableField_tab(1+)", "TableField"),
+        ("TableField_tab(12-)", "TableField"),
+        ("TableField_tab(123=)", "TableField"),
     ],
 )
 def test_strip_tab(field, expected):
@@ -1359,11 +1379,13 @@ def test_strip_tab(field, expected):
     ],
 )
 def test_mods(field):
-    for mod in ["+", "-"] + [f"{2**n}=" for n in range(19)]:
-        field_with_mod = f"{field}({mod})"
-        assert has_mod(field_with_mod)
-        assert strip_mod(field_with_mod) == field
-        assert get_mod(field_with_mod) == mod
+    for mod in ["+", "-", "="]:
+        for num in range(5):
+            mod = f"{2 ** num if num else ''}{mod}"
+            field_with_mod = f"{field}({mod})"
+            assert has_mod(field_with_mod)
+            assert strip_mod(field_with_mod) == field
+            assert get_mod(field_with_mod) == mod
 
 
 def test_mod_on_atom():

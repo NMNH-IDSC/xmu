@@ -21,7 +21,7 @@ TAB_PATTERN = "(" + "|".join(TAB_SUFFIXES) + ")$"
 REF_PATTERN = "(" + "|".join(REF_SUFFIXES) + ")$"
 
 #: str : pattern that matches update modifiers
-MOD_PATTERN = r"\((\d+=|[\+\-])\)$"
+MOD_PATTERN = r"\(\d*[=\+\-]\)$"
 
 
 @lru_cache(maxsize=None)
