@@ -600,7 +600,7 @@ def test_empty_grid(rec):
 
 def test_grid_query(grid):
     results = grid.query("EmuRef_tab", where={"EmuTable_tab": "Text"})
-    assert results == [{}, {}, {"EmuRefOnly": "Text", "irn": 1000000}]
+    assert results == [{}, {}]
 
 
 def test_grid_del_item(rec):

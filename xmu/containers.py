@@ -826,14 +826,18 @@ class EMuGrid(MutableSequence):
 
         if isinstance(key, dict):
             matches = []
-            for i, row in enumerate(self):
-                if all(
-                    (
-                        self._transform(row.get(k)) in self._transform(v)
-                        for k, v in key.items()
-                    )
-                ):
-                    matches.append((i, row))
+            for row in self:
+                for key_, val in key.items():
+                    row_val = self._transform(row.get(key_))
+                    match_val = self._transform(val)
+                    if (
+                        row_val == match_val
+                        or row_val
+                        and match_val
+                        and row_val in match_val
+                    ):
+                        matches.append(row)
+                        break
             return matches
 
         return self._rec[key]
@@ -932,7 +936,7 @@ class EMuGrid(MutableSequence):
             list of matching rows or values
         """
         results = []
-        for _, row in self[where]:
+        for row in self[where]:
             results.append(row[field] if field else row)
         return results
 
