@@ -636,11 +636,17 @@ class EMuColumn(list):
             child,
         ) in enumerate(self):
             tup = etree.SubElement(root, "tuple")
+
             # Add group and row indicators for updates
             if mod:
                 tup.set("row", mod)
                 if row_ids and mod == "+":
                     tup.set("group", row_ids[i])
+            # Otherwise explicitly number the table rows. This prevents EMu from
+            # skipping empty nested table cells when reading an import file.
+            else:
+                tup.set("row", str(i + 1))
+
             try:
                 child.to_xml(tup, kind=kind)
             except AttributeError:

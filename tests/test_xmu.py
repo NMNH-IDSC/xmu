@@ -507,7 +507,7 @@ def test_col_to_xml():
     col = EMuColumn(["Text"], module="emain", field="EmuTable_tab")
     assert (
         etree.tostring(col.to_xml())
-        == b'<table name="EmuTable_tab"><tuple><atom name="EmuTable">Text</atom></tuple></table>'
+        == b'<table name="EmuTable_tab"><tuple row="1"><atom name="EmuTable">Text</atom></tuple></table>'
     )
 
 
