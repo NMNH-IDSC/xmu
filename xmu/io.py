@@ -4,6 +4,7 @@ import glob
 import json
 import logging
 import os
+import time
 import zipfile
 
 from lxml import etree
@@ -53,6 +54,12 @@ class EMuReader:
         self._get_files()
         self._load_schema()
 
+        # Private attributes used to display notifications
+        self._job_start = None
+        self._job_done = False
+        self._notify_start = None
+        self._notify_count = 0
+
     def __iter__(self):
         for rec in self.from_file():
             yield rec
@@ -89,7 +96,10 @@ class EMuReader:
         """
         for filelike in self.files:
             logger.info("Reading records from %s", filelike)
-            i = 0
+            self._job_start = None
+            self._job_done = False
+            self._notify_start = None
+            self._notify_count = 0
             with filelike.open("rb") as source:
                 try:
                     context = etree.iterparse(source, events=["end"], tag="tuple")
@@ -103,12 +113,18 @@ class EMuReader:
                                 element.clear()
                                 # while element.getprevious() is not None:
                                 #    del element.getparent()[0]
-                                i += 1
-                                if not i % 5000:
-                                    logger.info("Read %s records from %s", i, filelike)
+                                self._notify_count += 1
+                                if not self._notify_count % 5000:
+                                    logger.info(
+                                        "Read %s records from %s",
+                                        self._notify_count,
+                                        filelike,
+                                    )
                 finally:
                     del context
-            logger.info("Read %s records total", i)
+            logger.info("Read %s records total", self._notify_count)
+            if self._job_start:
+                self.report_progress()
 
     def from_json(self, chunk_size=2097152):
         """Reads data from JSON
@@ -124,7 +140,10 @@ class EMuReader:
             EMu record
         """
         logger.info("Reading records from %s", self.json_path)
-        i = 0
+        self._job_start = None
+        self._job_done = False
+        self._notify_start = None
+        self._notify_count = 0
         with open(self.json_path, encoding="utf-8") as f:
             f.read(1)
             add_to_next_chunk = []
@@ -143,16 +162,21 @@ class EMuReader:
                             try:
                                 yield rec
                             finally:
-                                i += 1
-                                if not i % 5000:
+                                self._notify_count += 1
+                                if not self._notify_count % 5000:
                                     logger.info(
-                                        "Read %s records from %s", i, self.json_path
+                                        "Read %s records from %s",
+                                        self._notify_count,
+                                        self.json_path,
                                     )
                         break
                     except json.JSONDecodeError:
                         chunk, trailer = chunk.rsplit("{", 1)
                         add_to_next_chunk.append(f"{{{trailer}")
-        logger.info("Read %s records total", i)
+        logger.info("Read %s records total", self._notify_count)
+        self._job_done = True
+        if self._job_start:
+            self.report_progress()
 
     def to_json(self, path=None, **kwargs):
         """Writes JSON version of XML to file
@@ -198,6 +222,37 @@ class EMuReader:
             # Remove the partial JSON file if write is interrupted
             os.remove(path)
             raise IOError("Conversion to JSON failed") from exc
+
+    def report_progress(self, by="time", at=5):
+        """Prints progress notification messages when reading a file
+
+        Parameters
+        ----------
+        by : str
+            either "count" or "time"
+        at : int
+            number of seconds (if by time) or number of records (if by count)
+        """
+        if self._notify_start is None:
+            self._job_start = time.time()
+            self._notify_start = time.time()
+
+        elapsed = time.time() - (
+            self._job_start if self._job_done else self._notify_start
+        )
+        if (
+            self._job_done
+            or by == "time"
+            and elapsed >= at
+            or by == "count"
+            and self._notify_count > at
+        ):
+            print(
+                "{:,} records processed (t{}={:.1f}s)".format(
+                    self._notify_count, "otal" if self._job_done else "", elapsed
+                )
+            )
+            self._notify_start = time.time()
 
     def _parse(self, xml):
         """Parses a record from XML
