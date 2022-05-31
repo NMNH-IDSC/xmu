@@ -7,6 +7,26 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b3
+-----
+
+-   Added EMuReader.report_progress() to notify users about progress
+    reading through an XML file
+-   Changed EMuColumn.to_xml() method so that table rows are numbered
+    sequentially using the row attribute if no modifiers are given. This
+    prevents the EMu client from skipping empty nested table rows in
+    valid XML during import.
+-   Changed behavior of EMuRow.\_\_getitem\_\_() when a dictionary is
+    passed to:
+    1.  fix a bug where empty row values matched any query string
+    2.  return only the row. Previously the method returned the index
+        and row as a tuple, but this was redundant as the index is
+        accessible directly from the row object itself.
+-   Changed modifier pattern to catch additional modifiers supported by
+    EMu. Acceptable formats include “=”, “+”, “-”, “1=”, “1+”, and “1-”.
+-   Renamed EMuRow mod attribute to replace_mod to clarify that it
+    returns the replacement modifier
+
 0.1b2
 -----
 
