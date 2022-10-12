@@ -843,14 +843,15 @@ class EMuGrid(MutableSequence):
                 for key_, val in key.items():
                     row_val = self._transform(row.get(key_))
                     match_val = self._transform(val)
-                    if (
-                        row_val == match_val
-                        or row_val
-                        and match_val
-                        and row_val in match_val
+                    # Match if values are equal or if row_val matches one of
+                    # mutliple options given for match_val
+                    if row_val == match_val or (
+                        row_val and match_val and row_val in match_val.split("|")
                     ):
-                        matches.append(row)
-                        break
+                        continue
+                    break
+                else:
+                    matches.append(row)
             return matches
 
         return self._rec[key]

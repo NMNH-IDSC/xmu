@@ -605,6 +605,18 @@ def test_grid_query(grid):
     assert results == [{}, {}]
 
 
+def test_grid_get_item(rec):
+    grid = rec.grid("EmuTable_tab").pad()
+    assert len(grid[{"EmuDate0": "1970-01-01", "EmuTable_tab": "Text"}]) == 1
+    assert (
+        len(grid[{"EmuDate0": ["1970-01-01", "Jan 1970"], "EmuTable_tab": "Text"}]) == 2
+    )
+    assert (
+        len(grid[{"EmuDate0": ["1970-01-01", "Jan 1970"], "EmuTable_tab": "Number"}])
+        == 0
+    )
+
+
 def test_grid_del_item(rec):
     grid = rec.grid("EmuTable_tab").pad()
     del grid[0]
