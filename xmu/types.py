@@ -2,11 +2,15 @@
 import logging
 import re
 from calendar import monthrange
-from datetime import date, datetime, time
+from collections import namedtuple
+from datetime import MINYEAR, MAXYEAR, date, datetime, time
 from math import log10, modf
 
 
 logger = logging.getLogger(__name__)
+
+
+ExtendedDate = namedtuple("ExtendedDate", ["year", "month", "day"])
 
 
 class EMuType:
@@ -39,6 +43,7 @@ class EMuType:
         self.verbatim = val
         self.value = val
         self.format = fmt
+        self.always_compare_range = False
 
     def __str__(self):
         return self.format.format(self.value)
@@ -47,55 +52,57 @@ class EMuType:
         return f"{self.__class__.__name__}('{str(self)}')"
 
     def __eq__(self, other):
-        if self.is_range():
+        if not self._is_comparable(other):
+            return False
+        if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
             return (
-                self.value == other.value
-                and self.min_value == other.min_value
-                and self.max_value == other.max_value
+                self.comp == other.comp
+                and self.min_comp == other.min_comp
+                and self.max_comp == other.max_comp
             )
         return self.value == other
 
     def __ne__(self, other):
-        if self.is_range():
+        if not self._is_comparable(other):
+            return True
+        if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
             return (
-                self.value != other.value
-                or self.min_value != other.min_value
-                or self.max_value != other.max_value
+                self.comp != other.comp
+                or self.min_comp != other.min_comp
+                or self.max_comp != other.max_comp
             )
         return self.value != other
 
     def __lt__(self, other):
-        if self.is_range():
+        if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
-            return self.max_value < other.min_value
+            return self.max_comp < other.min_comp
         return self.value < other
 
     def __le__(self, other):
-        if self.is_range():
+        if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
-            return self.min_value <= other.max_value
+            return self.min_comp <= other.max_comp
         return self.value <= other
 
     def __gt__(self, other):
-        if self.is_range():
+        if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
-            return self.min_value > other.max_value
+            return self.min_comp > other.max_comp
         return self.value > other
 
     def __ge__(self, other):
-        if self.is_range():
+        if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
-            return self.max_value >= other.min_value
+            return self.max_comp >= other.min_comp
         return self.value >= other
 
     def __contains__(self, other):
         if self.is_range():
             other = self.coerce(other)
-            return (
-                self.min_value <= other.min_value and self.max_value >= other.max_value
-            )
+            return self.min_comp <= other.min_comp and self.max_comp >= other.max_comp
         raise ValueError(f"{self.__class__.__name__} is not a range")
 
     def __add__(self, other):
@@ -183,6 +190,25 @@ class EMuType:
         """Maximum value needed to express the original string"""
         return self.value
 
+    @property
+    def comp(self):
+        """Value to use for comparisons"""
+        return self.value
+
+    @property
+    def min_comp(self):
+        """Minimum value to use for comparisons"""
+        return self.value
+
+    @property
+    def max_comp(self):
+        """Maximum value to use for comparisons"""
+        return self.value
+
+    def emu_str(self):
+        """Returns a string representation suitable for EMu"""
+        return str(self)
+
     def coerce(self, other):
         """Coerces another object to the current class
 
@@ -206,7 +232,7 @@ class EMuType:
 
     def is_range(self):
         """Checks if class represents a range"""
-        return self.min_value != self.max_value
+        return self.min_comp != self.max_comp
 
     def _math_op(self, other, operation):
         """Performs the specified arithmetic operation"""
@@ -233,7 +259,10 @@ class EMuType:
             else:
                 fmt = self.format
         else:
-            val = getattr(self.value, operation)(other)
+            try:
+                val = getattr(self.value, operation)(other)
+            except AttributeError:
+                raise ValueError(f"Operation not available: {operation}")
             fmt = self.format
 
         if isinstance(val, tuple):
@@ -245,6 +274,9 @@ class EMuType:
             # Some operations return values that cannot be coerced to the original
             # class, for example, subtracting one date from another
             return val
+
+    def _is_comparable(self, other):
+        return other is not None
 
 
 class EMuFloat(EMuType):
@@ -281,6 +313,7 @@ class EMuFloat(EMuType):
         """
 
         self.verbatim = val
+        self.always_compare_range = False
 
         fmt_provided = fmt is not None
 
@@ -383,6 +416,7 @@ class EMuCoord(EMuFloat):
         """
 
         self.verbatim = val
+        self.always_compare_range = False
 
         self.minutes = None
         self.seconds = None
@@ -504,7 +538,7 @@ class EMuCoord(EMuFloat):
             fractional, integer = modf(val)
             if key == attr and tenths:
                 integer += round(fractional, 1)
-                parts.append("{:.1f}".format(integer))
+                parts.append(f"{integer:.1f}")
             else:
                 parts.append(str(int(integer)))
             if key == attr:
@@ -605,7 +639,7 @@ class EMuLatitude(EMuCoord):
     bounds = (-90, 90)
 
     def __init__(self, val, fmt=None):
-        """Initialize an EMuDate object
+        """Initialize an EMuLatitude object
 
         Parameters
         ----------
@@ -645,8 +679,10 @@ class EMuLongitude(EMuCoord):
 class EMuDate(EMuType):
     """Wraps dates read from strings to preserve meaning
 
-    Supports addition and subtraction using timedelta objects but not augmented
-    assignment using += or -=.
+    For dates in the range supported by the native EMu datetime module, this
+    class supports both comparisons and addition/subtraction using timedelta objects
+    but not augmented assignment using += or -=. For dates outside this range,
+    comparisons and operations are currently not possible.
 
     Parameters
     ----------
@@ -658,7 +694,7 @@ class EMuDate(EMuType):
 
     Attributes
     ----------
-    value : datetime.date
+    value : datetime.date or ExtendedDate
         date parsed from string
     format : str
         date format string used to convert the date back to a string
@@ -678,18 +714,43 @@ class EMuDate(EMuType):
 
         Parameters
         ----------
-        val : str or datetime.date
-            the date
+        val : str, int, or datetime.date
+            the date. If an int, must be a year only.
         fmt : str
             a date format string
         """
 
         self.verbatim = val
+        self.always_compare_range = True
 
         fmt_provided = fmt is not None
 
+        # Convert integers to strings
+        if isinstance(val, int):
+            val = str(val)
+
+        # Convert tuples to ExtendedDate
+        if isinstance(val, tuple) and not isinstance(val, ExtendedDate):
+            val = ExtendedDate(*val)
+
+        # Remove periods for parsing
+        if isinstance(val, str):
+            val = val.replace(".", "")
+
+        # Zero-pad two-digit years if no format is provided. EMu does not
+        # zero-pad years less than 1000 during export, which trips up the
+        # date parsing below.
+        if not fmt_provided and isinstance(val, str):
+            val = re.sub(
+                r"^(-?\d{1,3})\b",
+                lambda s: s.group(1).zfill(5 if val[0] == "-" else 4),
+                val,
+            )
+
+        # Typical EMu formats for dates
         fmts = [
             ("day", "%Y-%m-%d"),
+            ("day", "%d %b %Y"),
             ("month", "%Y-%m-"),
             ("month", "%b %Y"),
             ("year", "%Y"),
@@ -703,20 +764,32 @@ class EMuDate(EMuType):
             fmt = self.format
             fmts.clear()
 
-        elif isinstance(val, date):
-            self.value = val
-            self.kind = "day"
-            self.format = "%Y-%m-%d"
-            val = val.strftime(self.format)
+        elif isinstance(val, (date, ExtendedDate)):
+            if val.day:
+                self.kind = "day"
+                self.format = "%Y-%m-%d"
+            elif val.month:
+                self.kind = "month"
+                self.format = "%b %Y"
+            else:
+                self.kind = "year"
+                self.format = "%Y"
+
+            # Convert ExtendedDate that can be handled by the datetime module
+            if isinstance(val, ExtendedDate) and MINYEAR <= val.year <= MAXYEAR:
+                self.value = date(*(n if n else 1 for n in val))
+            else:
+                self.value = val
+
+            val = self._strftime(val, self.format)
             fmt = self.format
             fmts.clear()
 
         elif fmt:
-            # Assess speciicity of if custom formatting string provided
+            # Assess speciicity of date if custom formatting string provided
             for kind, directives in self.directives.items():
                 if any((d in fmt for d in directives)):
-                    parsed = datetime.strptime(val, fmt)
-                    self.value = date(parsed.year, parsed.month, parsed.day)
+                    self.value = self.strptime(str(val), fmt)
                     self.kind = kind
                     self.format = self.formats[kind]
                     fmts.clear()
@@ -724,8 +797,7 @@ class EMuDate(EMuType):
 
         for kind, fmt in fmts:
             try:
-                parsed = datetime.strptime(str(val), fmt)
-                self.value = date(parsed.year, parsed.month, parsed.day)
+                self.value = self.strptime(str(val), fmt)
                 self.kind = kind
                 self.format = self.formats[kind]
                 break
@@ -737,11 +809,11 @@ class EMuDate(EMuType):
 
         # Verify that the parsed value is the same as the original string if
         # the format string was calculated
-        if not fmt_provided and str(val) != self.strftime(fmt):
-            raise ValueError(f"Parsing changed value ('{val}' became '{self}')")
+        # if not fmt_provided and str(val) != self.strftime(fmt):
+        #    raise ValueError(f"Parsing changed value ('{val}' became '{self}')")
 
     def __str__(self):
-        return self.value.strftime(self.format)
+        return self.strftime(self.format)
 
     def strftime(self, fmt=None):
         """Formats date as a string
@@ -756,25 +828,7 @@ class EMuDate(EMuType):
         str
             date as string
         """
-
-        if fmt is None:
-            fmt = self.format
-
-        # Forbid formats that are more specific than the original string. Users
-        # can force the issue by formatting the value attribute directly.
-        if not self.day:
-            allowed = []
-            if self.year:
-                allowed.extend(self.directives["year"])
-            if self.month:
-                allowed.extend(self.directives["month"])
-
-            directives = re.findall(r"%[a-z]", fmt, flags=re.I)
-            disallowed = set(directives) - set(allowed)
-            if disallowed:
-                raise ValueError(f'Invalid directives for "{str(self)}": {disallowed}')
-
-        return self.value.strftime(fmt)
+        return self._strftime(self, fmt if fmt is not None else self.format)
 
     def to_datetime(self, time):
         """Combines date and time into a single datetime
@@ -802,6 +856,17 @@ class EMuDate(EMuType):
             time.tzinfo,
         )
 
+    def emu_str(self):
+        """Returns a string representation of the date suitable for EMu"""
+        if self.year < 0:
+            self.year *= -1
+            val = f"{self} BC"
+            self.year *= -1
+            return val
+        if 0 <= self.year < 100:
+            return f"{self} AD"
+        return str(self)
+
     @property
     def min_value(self):
         """Minimum date needed to express the original string
@@ -812,9 +877,9 @@ class EMuDate(EMuType):
         if self.kind == "day":
             return self.value
         if self.kind == "month":
-            return date(self.value.year, self.value.month, 1)
+            return self.value.__class__(self.value.year, self.value.month, 1)
         if self.kind == "year":
-            return date(self.value.year, 1, 1)
+            return self.value.__class__(self.value.year, 1, 1)
         raise ValueError(f"Invalid kind: {self.kind}")
 
     @property
@@ -828,25 +893,159 @@ class EMuDate(EMuType):
             return self.value
         if self.kind == "month":
             _, last_day = monthrange(self.value.year, self.value.month)
-            return date(self.value.year, self.value.month, last_day)
+            return self.value.__class__(self.value.year, self.value.month, last_day)
         if self.kind == "year":
-            return date(self.value.year, 12, 31)
+            return self.value.__class__(self.value.year, 12, 31)
         raise ValueError(f"Invalid kind: {self.kind}")
+
+    @property
+    def comp(self):
+        """Value to use for comparisons"""
+        val = self.min_value
+        return (val.year, val.month if val.month else 1, val.day if val.day else 1)
+
+    @property
+    def min_comp(self):
+        """Minimum value to use for comparisons"""
+        val = self.min_value
+        return (val.year, val.month, val.day)
+
+    @property
+    def max_comp(self):
+        """Maximum value to use for comparisons"""
+        val = self.max_value
+        return (val.year, val.month, val.day)
 
     @property
     def year(self):
         """Year of the parsed date"""
         return self.value.year
 
+    @year.setter
+    def year(self, year):
+        self.value = self.value.__class__(year, self.month, self.day)
+
     @property
     def month(self):
         """Month of the parsed date"""
         return self.value.month if self.kind != "year" else None
 
+    @month.setter
+    def month(self, month):
+        self.value = self.value.__class__(self.year, month, self.day)
+
     @property
     def day(self):
         """Day of the parsed date"""
         return self.value.day if self.kind == "day" else None
+
+    @day.setter
+    def day(self, day):
+        self.value = self.value.__class__(self.year, self.month, day)
+
+    @staticmethod
+    def strptime(val, fmt):
+        """Formats a string as a date
+
+        Parameters
+        ----------
+        val : str
+            date string
+        fmt : str
+            date format string
+
+        Returns
+        -------
+        datetime.date or ExtendedDate
+            date as an object. If year is out-of-range for the native date class,
+            returns an ExtendedDate tuple instead.
+        """
+        try:
+            parsed = datetime.strptime(val, fmt)
+            return date(parsed.year, parsed.month, parsed.day)
+        except ValueError:
+            # Set up a regex pattern based on the date format string
+            pattern = (
+                fmt.replace("%Y", r"(?P<year>-?\d+)")
+                .replace("%m", r"(?P<month>\d+)")
+                .replace("%d", r"(?P<day>\d+)")
+                .replace("%b", r"(?P<month>[A-Z]{3})")
+            )
+            match = re.search(
+                "^" + pattern + r"( (A[\. ]*D\.?|B[\. ]*C[\. ]*(E\.?)?))?$",
+                val,
+                flags=re.I,
+            )
+
+            ymd = []
+            for key in ("year", "month", "day"):
+                try:
+                    ymd.append(int(match.group(key)))
+                except AttributeError as exc:
+                    raise ValueError("Could not parse string as ExtendedDate") from exc
+                except IndexError:
+                    ymd.append(None)
+                except ValueError:
+                    ymd.append(int(datetime.strptime(match.group(key), "%b").month))
+
+            if ymd[0] is not None and ymd[0] > 0:
+                pattern = r"\b(A[\. ]*D\.?|B[\. ]*C[\. ]*(E\.?)?)\b"
+                ad_bc = re.search(pattern, val, flags=re.I)
+                if ad_bc is not None:
+                    ad_bc = re.sub(r"[^A-Z]", "", ad_bc.group().upper(), flags=re.I)
+                    if ad_bc.startswith("BC"):
+                        ymd[0] *= -1
+
+            return ExtendedDate(*ymd)
+
+    def _strftime(self, val, fmt=None):
+        """Formats date as a string
+
+        Parameters
+        ----------
+        val: datetime.date, EMuDate, or ExtendedDate
+            date
+        fmt : str
+            date format string
+
+        Returns
+        -------
+        str
+            date as string
+        """
+
+        # Forbid formats that are more specific than the original string. Users
+        # can force the issue by formatting the value attribute directly.
+        if not val.day:
+            allowed = []
+            if val.year is not None:
+                allowed.extend(self.directives["year"])
+            if val.month:
+                allowed.extend(self.directives["month"])
+
+            directives = re.findall(r"%[a-z]", fmt, flags=re.I)
+            disallowed = set(directives) - set(allowed)
+            if disallowed:
+                raise ValueError(
+                    f"Invalid directives for ({val.year}, {val.month}, {val.day}): {disallowed}"
+                )
+
+        # Use the value attribute if passing an EMuDate
+        if isinstance(val, EMuDate):
+            val = val.value
+
+        try:
+            return val.strftime(fmt)
+        except AttributeError:
+            date_str = (
+                fmt.replace("%Y", str(val.year).zfill(5 if val.year < 0 else 4))
+                .replace("%m", str(val.month).zfill(2))
+                .replace("%d", str(val.day).zfill(2))
+            )
+            if "%b" in fmt:
+                month_abbr = datetime.strptime(str(val.month), "%m").strftime("%b")
+                date_str = date_str.replace("%b", month_abbr)
+            return date_str
 
 
 class EMuTime(EMuType):
@@ -862,6 +1061,7 @@ class EMuTime(EMuType):
         """
 
         self.verbatim = val
+        self.always_compare_range = False
 
         fmt_provided = fmt is not None
 

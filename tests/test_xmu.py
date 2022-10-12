@@ -30,6 +30,7 @@ from xmu import (
     write_import,
     write_group,
 )
+from xmu.types import ExtendedDate
 
 
 @pytest.fixture(scope="session")
@@ -994,6 +995,11 @@ def test_dtype_ge(date_string, expected):
     assert (EMuDate("Feb 2022") >= date_string) == expected
 
 
+def test_dtype_invalid_comp():
+    assert (EMuFloat(0) == None) == False
+    assert (EMuFloat(0) != None) == True
+
+
 @pytest.mark.parametrize(
     "date_string,expected",
     [
@@ -1008,10 +1014,41 @@ def test_dtype_ge(date_string, expected):
         ("2021", False),
         ("2022", False),
         ("2023", False),
+        ((2022, 2, 1), True),
     ],
 )
 def test_dtype_contains(date_string, expected):
     assert (date_string in EMuDate("Feb 2022")) == expected
+
+
+@pytest.mark.parametrize(
+    "date_string,exp_str,exp_emu",
+    [
+        ("99999-01-01", "99999-01-01", "99999-01-01"),
+        ("99999-01-", "Jan 99999", "Jan 99999"),
+        ("Jan 99999", "Jan 99999", "Jan 99999"),
+        ("99999", "99999", "99999"),
+        (99999, "99999", "99999"),
+        ("-99999-01-01", "-99999-01-01", "99999-01-01 BC"),
+        ("-99999-01-", "Jan -99999", "Jan 99999 BC"),
+        ("Jan -99999", "Jan -99999", "Jan 99999 BC"),
+        ("-99999", "-99999", "99999 BC"),
+        (-99999, "-99999", "99999 BC"),
+        ("99999-01-01 BC", "-99999-01-01", "99999-01-01 BC"),
+        ("99999-01- b.c.", "Jan -99999", "Jan 99999 BC"),
+        ("Jan 99999 bce", "Jan -99999", "Jan 99999 BC"),
+        ("99999 B.C.", "-99999", "99999 BC"),
+        (99, "0099", "0099 AD"),
+        (9, "0009", "0009 AD"),
+        (0, "0000", "0000 AD"),
+        (-9, "-0009", "0009 BC"),
+        (-99, "-0099", "0099 BC"),
+    ],
+)
+def test_dtype_date_out_of_range(date_string, exp_str, exp_emu):
+    emu_date = EMuDate(date_string)
+    assert str(emu_date) == exp_str
+    assert emu_date.emu_str() == exp_emu
 
 
 def test_dtype_date_parse_same_class():
@@ -1033,7 +1070,7 @@ def test_dtype_date_parse_failed():
 
 def test_dtype_date_invalid_directive():
     date = EMuDate("1970-01-")
-    with pytest.raises(ValueError, match='Invalid directives for "Jan 1970"'):
+    with pytest.raises(ValueError, match=r"Invalid directives for \(1970, 1, None\)"):
         date.strftime("%Y-%m-%d")
 
 
@@ -1050,6 +1087,27 @@ def test_dtype_date_to_datetime():
     time = EMuTime("15:00")
     assert date.to_datetime(time) == datetime(1970, 1, 1, 15, 0)
     assert time.to_datetime(date) == datetime(1970, 1, 1, 15, 0)
+
+
+@pytest.mark.parametrize(
+    "date_tuple,expected",
+    [
+        ((1970, 1, 1), "1970-01-01"),
+        ((1970, 1, None), "Jan 1970"),
+        ((1970, None, None), "1970"),
+    ],
+)
+def test_dtype_date_tuples(date_tuple, expected):
+    assert str(EMuDate(date_tuple)) == expected
+    assert str(EMuDate(ExtendedDate(*date_tuple))) == expected
+
+
+def test_dtype_date_setters():
+    date = EMuDate("1970-01-01")
+    date.year = 1971
+    date.month = 2
+    date.day = 2
+    assert str(date) == "1971-02-02"
 
 
 @pytest.mark.parametrize(

@@ -658,7 +658,14 @@ class EMuColumn(list):
                     name = "irn" if is_ref(self.field) else strip_tab(self.field)
                     atom = etree.SubElement(tup, "atom")
                     atom.set("name", name)
-                    atom.text = str(child) if _is_not_blank(child) else ""
+
+                    # Set text, deferring to the emu_str method if it exists
+                    atom.text = ""
+                    if _is_not_blank(child):
+                        try:
+                            atom.text = child.emu_str()
+                        except AttributeError:
+                            atom.text = str(child)
 
         return root
 
@@ -1156,7 +1163,14 @@ class EMuRecord(dict):
             ):
                 atom = etree.SubElement(root, "atom")
                 atom.set("name", key)
-                atom.text = str(val) if _is_not_blank(val) else ""
+
+                # Set text, deferring to the emu_str method if it exists
+                atom.text = ""
+                if _is_not_blank(val):
+                    try:
+                        atom.text = val.emu_str()
+                    except AttributeError:
+                        atom.text = str(val)
         return root
 
 
