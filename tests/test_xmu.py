@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 import os
+import re
 import zipfile
 
 import pytest
@@ -712,12 +713,15 @@ def test_rec_round_trip(rec, output_dir):
         assert EMuRecord(rec_, module=reader.module) == rec
 
 
-def test_rec_round_trip(rec, output_dir):
-    path = str(output_dir / "import.xml")
-    write_import([rec], path, kind="emu")
-    reader = EMuReader(path)
-    for rec_ in reader:
-        assert EMuRecord(rec_, module=reader.module) == rec
+def test_report_progress(xml_file, output_dir, capsys):
+    reader = EMuReader(output_dir)
+    for i, rec in enumerate(reader):
+        reader.report_progress("count", 1)
+        if i:
+            assert re.match(
+                r"\d+(,\d{3})* records processed \(t", capsys.readouterr().out
+            )
+    assert re.match(r"\d+(,\d{3})* records processed \(total=", capsys.readouterr().out)
 
 
 def test_write_import_invalid_kind(rec, output_dir):

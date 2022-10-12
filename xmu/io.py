@@ -123,6 +123,7 @@ class EMuReader:
                 finally:
                     del context
             logger.info("Read %s records total", self._notify_count)
+            self._job_done = True
             if self._job_start:
                 self.report_progress()
 
@@ -245,7 +246,8 @@ class EMuReader:
             or by == "time"
             and elapsed >= at
             or by == "count"
-            and self._notify_count > at
+            and self._notify_count
+            and not (self._notify_count % at)
         ):
             print(
                 "{:,} records processed (t{}={:.1f}s)".format(
