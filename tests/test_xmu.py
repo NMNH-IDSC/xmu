@@ -117,6 +117,33 @@ use utf8;
 
 				ItemName => 'Longitude',
 			},
+            'EmuLookupParent' =>
+			{
+				ColumnName => 'EmuText',
+				DataType => 'Text',
+                LookupName => 'Lookup',
+				LookupParent => 'SecLookupRoot',
+
+				ItemName => 'Lookup Parent',
+			},
+            'EmuLookupChild' =>
+			{
+				ColumnName => 'EmuText',
+				DataType => 'Text',
+                LookupName => 'Lookup',
+				LookupParent => 'EmuLookupParent',
+
+				ItemName => 'Lookup Child',
+			},
+            'EmuLookupGrandchild' =>
+			{
+				ColumnName => 'EmuText',
+				DataType => 'Text',
+                LookupName => 'Lookup',
+				LookupParent => 'EmuLookupChild',
+
+				ItemName => 'Lookup Grandchild',
+			},
             'EmuNestedTable_nesttab' =>
 			{
 				ColumnName => 'EmuNestedTable_nesttab',
@@ -273,6 +300,7 @@ def config_file(output_dir, schema_file):
             "EmuRef_tab",
         ]
     }
+    config["lookup_no_autopopulate"] = ["emain.EmuLookupParent", "emain.EmuLookupChild"]
     config.save_rcfile(output_dir, overwrite=True)
     return str(output_dir / ".xmurc")
 
@@ -394,8 +422,13 @@ def grid(rec):
 
 def test_config(config_file, output_dir):
     config = EMuConfig(config_file)
-    assert len(config) == 3
-    assert [k for k in config] == ["schema_path", "groups", "make_visible"]
+    assert len(config) == 4
+    assert [k for k in config] == [
+        "schema_path",
+        "groups",
+        "make_visible",
+        "lookup_no_autopopulate",
+    ]
     assert config["schema_path"] == str(output_dir / "schema.pl")
     assert config["make_visible"] == []
     del config["make_visible"]
@@ -454,6 +487,9 @@ def test_schema_iterfields(schema_file):
         ("emain", "EmuFloat"),
         ("emain", "EmuLatitude"),
         ("emain", "EmuLongitude"),
+        ("emain", "EmuLookupParent"),
+        ("emain", "EmuLookupChild"),
+        ("emain", "EmuLookupGrandchild"),
         ("emain", "EmuNestedTable_nesttab"),
         ("emain", "EmuNotVisible"),
         ("emain", "EmuRef"),
@@ -673,6 +709,31 @@ def test_grid_insert(grid):
 def test_grid_from_ungrouped(rec):
     with pytest.raises(KeyError, match=r"'emain.EmuText is not part of a group"):
         rec.grid("EmuText")
+
+
+@pytest.mark.parametrize(
+    "key,val,expected",
+    [
+        (
+            "EmuLookupParent",
+            "Text",
+            '<tuple><atom name="EmuLookupParent">Text</atom></tuple>',
+        ),
+        (
+            "EmuLookupChild",
+            "Text",
+            r'<tuple><atom name="EmuLookupChild">Text</atom><atom name="EmuLookupParent"></atom></tuple>',
+        ),
+        (
+            "EmuLookupGrandchild",
+            "Text",
+            r'<tuple><atom name="EmuLookupGrandchild">Text</atom><atom name="EmuLookupChild"></atom><atom name="EmuLookupParent"></atom></tuple>',
+        ),
+    ],
+)
+def test_lookup(key, val, expected):
+    rec = EMuRecord({key: val}, module="emain")
+    assert etree.tostring(rec.to_xml()).decode("utf-8") == expected
 
 
 def test_rec_from_dir(xml_file, output_dir, expected_rec):

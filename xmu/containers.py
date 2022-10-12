@@ -81,6 +81,13 @@ class EMuConfig(MutableMapping):
                     " schema that should resolve even if schema.visible_only is True."
                 ),
             ),
+            "lookup_no_autopopulate": (
+                [],
+                (
+                    "# Path as 'module.field' to fields that should not be populated"
+                    " when filling a lookup hierarchy during import."
+                ),
+            ),
         }
 
         self.load_rcfile()
@@ -1129,8 +1136,8 @@ class EMuRecord(dict):
 
         # Fill in grids and cache row IDs so grids are only checked once
         grids = {}
-        if kind == "update":
-            for key in list(self):
+        for key in list(self):
+            if kind == "update":
                 try:
                     grids[key]
                 except KeyError:
@@ -1139,13 +1146,38 @@ class EMuRecord(dict):
                     except KeyError:
                         pass
                     else:
-                        # Include all columns when appending
-                        if key.endswith("(+)"):
+                        # Include all columns when appending or prepending
+                        if key.endswith(("(+)", "(-)")):
                             grid.add_columns()
                         grid.pad()
                         row_ids = [r.row_id() for r in grid]
                         for col in grid.columns:
                             grids[col] = row_ids
+
+            # Populate unfilled lookup list parent fields
+            try:
+                while True:
+                    lookup_parent = self.schema.get_field_info(self.module, key)[
+                        "LookupParent"
+                    ]
+
+                    # Break on SecLookupRoot and any other fields specified in config
+                    field = f"{self.module}.{lookup_parent}"
+                    if (
+                        lookup_parent == "SecLookupRoot"
+                        or field not in self.config["lookup_no_autopopulate"]
+                    ):
+                        break
+
+                    try:
+                        self[lookup_parent]
+                    except KeyError:
+                        logger.debug(f"Filled parent in lookup: {lookup_parent}")
+                        self[lookup_parent] = None
+
+                    key = lookup_parent
+            except KeyError:
+                pass
 
         for key, val in self.items():
             if is_tab(key):
