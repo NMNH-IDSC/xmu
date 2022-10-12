@@ -1337,14 +1337,20 @@ def _get_field_info(module, path, visible_only=None):
     if visible_only is None:
         visible_only = schema.visible_only
 
-    for seg in _split_path(path):
+    segments = _split_path(path)
+    modules = [module]
+    for seg in segments:
         obj = schema[
-            ("Schema", module, "columns", strip_mod(seg).replace("_inner", ""))
+            ("Schema", modules[-1], "columns", strip_mod(seg).replace("_inner", ""))
         ]
-        module = obj.get("RefTable", module)
+        modules.append(obj.get("RefTable", modules[-1]))
 
     # ItemName *appears* to be populated only for fields that appear in the client
-    if visible_only and not obj.get("ItemName"):
+    if (
+        visible_only
+        and not obj.get("ItemName")
+        and not ".".join([module] + segments) in EMuRecord.config["make_visible"]
+    ):
         raise KeyError(f"{module}.{seg} is valid but not not visible")
 
     return obj
