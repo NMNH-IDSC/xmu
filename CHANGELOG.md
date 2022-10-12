@@ -7,6 +7,21 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b4
+-----
+
+-   Changed EMuDate to handle dates outside the MINYEAR and MAXYEAR
+    allowed in python’s datetime module. Dates outside that range can be
+    expressed but do not support most date operations.
+-   Changed EMuRecord.to_xml() and EMuColumn.to_xml() to (1) include
+    blank values when records are created, (2) to add blank values to
+    parent fields in a lookup hierarchy based a key in the config file,
+    and (3) to check for an emu_str() method when writing values. The
+    emu_str() method is used by some EMuType classes to allow greater
+    control in how values are depicted in imports.
+-   Fixed bugs selecting grid rows, parsing IRNs, reporting progress,
+    and marking normally inaccessible fields as visible.
+
 0.1b3
 -----
 
