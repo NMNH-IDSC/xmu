@@ -1192,11 +1192,7 @@ class EMuRecord(dict):
                 ref_tup = etree.SubElement(root, "tuple")
                 ref_tup.set("name", key)
                 val.to_xml(ref_tup, kind=kind)
-            elif (
-                _is_not_blank(val)
-                or kind in {"emu", "update"}
-                or is_ref(self.field if self.field else "")
-            ):
+            else:
                 atom = etree.SubElement(root, "atom")
                 atom.set("name", key)
 
