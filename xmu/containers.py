@@ -1186,6 +1186,9 @@ class EMuRecord(dict):
                 # group attribute in each tuple tag for appends and prepends.
                 val.to_xml(root, kind=kind, row_ids=grids.get(key, None))
             elif is_ref(key):
+                if isinstance(val, int):
+                    # The module does not matter here, so just use the parent's
+                    val = self.__class__({"irn": val}, module=self.module)
                 ref_tup = etree.SubElement(root, "tuple")
                 ref_tup.set("name", key)
                 val.to_xml(ref_tup, kind=kind)
@@ -1232,16 +1235,6 @@ def _coerce_values(parent, child, key=None):
     if is_nesttab(field) and not isinstance(parent, dict_class):
         field = f"{strip_mod(field)}_inner"
 
-    # Simplify IRN-only references
-    if is_ref(field):
-        # Simplify IRN-only references to integers
-        if isinstance(child, dict) and list(child) == ["irn"]:
-            child = child["irn"]
-
-        # Interpret integers in reference fields as IRNs
-        if isinstance(child, int):
-            return child
-
     # Tables must be list-like
     if (
         field != parent.field
@@ -1250,6 +1243,20 @@ def _coerce_values(parent, child, key=None):
         and child is not None
     ):
         raise TypeError(f"Columns must be lists ({child} was assigned to {field})")
+
+    # Simplify IRN-only references
+    if is_ref(field):
+        # Simplify IRN-only references to integers
+        if isinstance(child, dict) and list(child) == ["irn"]:
+            child = child["irn"]
+
+        # Interpret integers in reference fields as IRNs
+        try:
+            child_as_int = int(child)
+            if isinstance(child_as_int, int):
+                return child_as_int
+        except (TypeError, ValueError):
+            pass
 
     # References must be dicts or ints (which are interpreted as IRNS
     if (
