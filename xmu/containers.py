@@ -1212,17 +1212,20 @@ class EMuRecord(dict):
                             grids[col] = row_ids
 
             # Populate unfilled lookup list parent fields
-            try:
+            module = _get_module(self)
+            if self.schema is not None and self.schema.validate_paths:
                 while True:
-                    lookup_parent = self.schema.get_field_info(self.module, key)[
-                        "LookupParent"
-                    ]
+                    field_info = self.schema.get_field_info(module, key)
+                    try:
+                        lookup_parent = field_info["LookupParent"]
+                    except KeyError:
+                        break
 
                     # Break on SecLookupRoot and any other fields specified in config
-                    field = f"{self.module}.{lookup_parent}"
                     if (
                         lookup_parent == "SecLookupRoot"
-                        or field not in self.config["lookup_no_autopopulate"]
+                        or f"{self.module}.{lookup_parent}"
+                        not in self.config["lookup_no_autopopulate"]
                     ):
                         break
 
@@ -1233,8 +1236,6 @@ class EMuRecord(dict):
                         self[lookup_parent] = None
 
                     key = lookup_parent
-            except KeyError:
-                pass
 
         for key, val in self.items():
             if is_tab(key):
