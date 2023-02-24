@@ -941,6 +941,7 @@ def test_rec_getitem_no_schema(rec):
 @pytest.mark.parametrize(
     "key,val,match",
     [
+        ("EmuText", ["Text"], r"Sequence assigned to atomic field"),
         ("EmuRef", "Text", r"References must be dicts"),
         ("EmuRef_tab", "1234567", r"Columns must be lists"),
         ("EmuRef_tab", ["Text"], r"Could not coerce to Integer"),

@@ -1321,6 +1321,12 @@ def _coerce_values(parent, child, key=None):
     ):
         raise TypeError(f"References must be dicts ({child} was assigned to {field})")
 
+    # Sequences must only be used in tables
+    if isinstance(child, (list, tuple)) and not is_tab(field):
+        raise TypeError(
+            f"Sequence assigned to atomic field ({child} was assigned to {field})"
+        )
+
     # Coerce containers to the proper types
     if isinstance(child, dict) and not isinstance(child, dict_class):
         child = dict_class(child, module=module, field=field)
