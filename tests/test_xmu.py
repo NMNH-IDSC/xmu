@@ -797,6 +797,28 @@ def test_rec_round_trip(rec, output_dir):
         assert EMuRecord(rec_, module=reader.module) == rec
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        ("EmuRef", "EmuRefOnly"),
+        ["EmuRef", "EmuRefOnly"],
+        "EmuRef.EmuRefOnly",
+        "EmuRef/EmuRefOnly",
+    ],
+)
+def test_rec_getitem(rec, path):
+    assert rec[path] == "Text"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [None, {}],
+)
+def test_rec_getitem_invalid(rec, path):
+    with pytest.raises(ValueError, match=r"Invalid path format:"):
+        rec[path]
+
+
 def test_report_progress(xml_file, output_dir, capsys):
     reader = EMuReader(output_dir)
     for i, rec in enumerate(reader):

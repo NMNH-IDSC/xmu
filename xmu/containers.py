@@ -450,8 +450,6 @@ class EMuSchema(dict):
         dict
             information about the field (names, data types, etc.)
         """
-        if isinstance(path, list):
-            path = ".".join(path)
         return _get_field_info(module, path, visible_only=visible_only)
 
     def _read_schema_pl(self, path):
@@ -1059,6 +1057,9 @@ class EMuRecord(dict):
             ) from exc
 
     def __setitem__(self, key, val):
+        # Catch a key containing illegal characters
+        if not re.match(r"\w+$", strip_mod(key)):
+            raise ValueError(f"Invalid key: {key} (module={_get_module(self)})")
         super().__setitem__(key, _coerce_values(self, val, key))
 
     def get(self, key, default=None):
@@ -1357,10 +1358,11 @@ def _get_field_info(module, path, visible_only=None):
         modules.append(obj.get("RefTable", modules[-1]))
 
     # ItemName *appears* to be populated only for fields that appear in the client
+    module = modules[-1]
     if (
         visible_only
         and not obj.get("ItemName")
-        and not ".".join([module] + segments) in EMuRecord.config["make_visible"]
+        and not ".".join([module] + list(segments)) in EMuRecord.config["make_visible"]
     ):
         raise KeyError(f"{module}.{seg} is valid but not not visible")
 
@@ -1381,8 +1383,10 @@ def _is_not_blank(val):
 
 def _split_path(path):
     """Splits path into segments"""
+    if isinstance(path, tuple):
+        return path
     if isinstance(path, str):
-        path = re.split("[./]", path)
-    elif not isinstance(path, (list, tuple)):
-        path = [path]
-    return path
+        return tuple(re.split(r"[./]", path))
+    if isinstance(path, list):
+        return tuple(path)
+    raise ValueError(f"Invalid path format: {path}")
