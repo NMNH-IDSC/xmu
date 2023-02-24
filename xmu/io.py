@@ -317,12 +317,11 @@ class EMuReader:
                             obj.append([])
                             new_elems.append((obj[-1], name, child))
 
-                    # Add a row to a table
+                    # Add a row to a reference table
                     elif (
                         child.tag == "tuple"
                         and is_ref_tab(parent_name)
                         and not is_nesttab(parent_name)
-                        and not is_nesttab_inner(parent_name)
                     ):
                         obj.append({})
                         new_elems.append((obj[-1], name, child))
@@ -475,11 +474,12 @@ def write_import(records, path, **kwargs):
     root.set("name", records[0].module)
     root.addprevious(etree.Comment(" Data "))
 
-    for rec in records:
-        rec.copy().to_xml(root, **kwargs)
-
-    for i, rec in enumerate(root):
-        rec.addprevious(etree.Comment(f" Row {i + 1} "))
+    for i, rec in enumerate(records):
+        try:
+            node = rec.copy().to_xml(root, **kwargs)
+            node.addprevious(etree.Comment(f" Row {i + 1} "))
+        except AttributeError:
+            raise ValueError(f"Could not convert record to XML: {rec}")
 
     root.getroottree().write(
         path, pretty_print=True, xml_declaration=True, encoding="utf-8"

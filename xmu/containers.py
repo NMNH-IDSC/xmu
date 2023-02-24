@@ -1249,7 +1249,8 @@ class EMuRecord(dict):
                     val = self.__class__({"irn": val}, module=self.module)
                 ref_tup = etree.SubElement(root, "tuple")
                 ref_tup.set("name", key)
-                val.to_xml(ref_tup, kind=kind)
+                if val is not None:
+                    val.to_xml(ref_tup, kind=kind)
             else:
                 atom = etree.SubElement(root, "atom")
                 atom.set("name", key)
