@@ -1298,9 +1298,20 @@ def _coerce_values(parent, child, key=None):
                     "UserId": str,
                 }[dtype](child)
             except (TypeError, ValueError) as exc:
-                raise TypeError(
-                    f"Could not coerce to {dtype} ({field}={repr(child)})"
-                ) from exc
+                # Handle integers with decimals or commas
+                if (
+                    dtype == "Integer"
+                    and isinstance(child, str)
+                    and (
+                        re.search(r"\.0+$", child)
+                        or re.match(r"-?\d{1,3}(,\d{3})+", child)
+                    )
+                ):
+                    child = int(EMuFloat(child))
+                else:
+                    raise TypeError(
+                        f"Could not coerce to {dtype} ({field}={repr(child)})"
+                    ) from exc
 
     # Evaluate nesting within tables
     if (

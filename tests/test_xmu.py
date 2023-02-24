@@ -96,6 +96,13 @@ use utf8;
 				ItemCount => 1,
 				ItemFields => [ 15 ],
 			},
+            'EmuInteger' =>
+			{
+				ColumnName => 'EmuInteger',
+				DataType => 'Integer',
+
+                ItemName => 'Integer',
+			},
 			'EmuFloat' =>
 			{
 				ColumnName => 'EmuFloat',
@@ -314,6 +321,7 @@ def xml_file(output_dir):
   <tuple>
     <atom name="irn">1000000</atom>
     <atom name="EmuText">Text</atom>
+    <atom name="EmuInteger">1</atom>
     <atom name="EmuFloat">1.0</atom>
     <atom name="EmuLatitude">45 30 15 N</atom>
     <atom name="EmuLongitude">-130 10 5 W</atom>
@@ -402,6 +410,7 @@ def expected_rec():
     return {
         "irn": "1000000",
         "EmuText": "Text",
+        "EmuInteger": "1",
         "EmuFloat": "1.0",
         "EmuLatitude": "45 30 15 N",
         "EmuLongitude": "-130 10 5 W",
@@ -484,6 +493,7 @@ def test_schema_iterfields(schema_file):
         ("emain", "EmuClientTableRef_tab"),
         ("emain", "EmuDate0"),
         ("emain", "EmuEmpty"),
+        ("emain", "EmuInteger"),
         ("emain", "EmuFloat"),
         ("emain", "EmuLatitude"),
         ("emain", "EmuLongitude"),
@@ -917,6 +927,15 @@ def test_rec_getitem_no_schema(rec):
 def test_rec_set_invalid_type(key, val, match):
     with pytest.raises(TypeError, match=match):
         EMuRecord(module="emain")[key] = val
+
+
+@pytest.mark.parametrize(
+    "val,expected",
+    [(1.0, 1), ("10,000", 10000), (-9999.0, -9999)],
+)
+def test_rec_set_integer(rec, val, expected):
+    rec["EmuInteger"] = val
+    assert rec["EmuInteger"] == expected
 
 
 def test_rec_set_invalid_field():
