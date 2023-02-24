@@ -52,52 +52,67 @@ class EMuType:
         return f"{self.__class__.__name__}('{str(self)}')"
 
     def __eq__(self, other):
-        if not self._is_comparable(other):
+        if self.value == other:
+            return True
+        try:
+            other = self.coerce(other)
+        except:
             return False
         if self.is_range() or self.always_compare_range:
-            other = self.coerce(other)
             return (
                 self.comp == other.comp
                 and self.min_comp == other.min_comp
                 and self.max_comp == other.max_comp
             )
-        return self.value == other
+        return self.value == other.value
 
     def __ne__(self, other):
-        if not self._is_comparable(other):
-            return True
-        if self.is_range() or self.always_compare_range:
-            other = self.coerce(other)
-            return (
-                self.comp != other.comp
-                or self.min_comp != other.min_comp
-                or self.max_comp != other.max_comp
-            )
-        return self.value != other
+        return not self.__eq__(other)
 
     def __lt__(self, other):
-        if self.is_range() or self.always_compare_range:
+        try:
             other = self.coerce(other)
+        except:
+            raise TypeError(
+                f"'<' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+            )
+        if self.is_range() or self.always_compare_range:
             return self.max_comp < other.min_comp
-        return self.value < other
+        return self.value < other.value
 
     def __le__(self, other):
-        if self.is_range() or self.always_compare_range:
+        try:
             other = self.coerce(other)
+        except:
+            raise TypeError(
+                f"'<=' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+            )
+        if self.is_range() or self.always_compare_range:
             return self.min_comp <= other.max_comp
-        return self.value <= other
+        return self.value <= other.value
 
     def __gt__(self, other):
+        try:
+            other = self.coerce(other)
+        except:
+            raise TypeError(
+                f"'>' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+            )
         if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
             return self.min_comp > other.max_comp
-        return self.value > other
+        return self.value > other.value
 
     def __ge__(self, other):
-        if self.is_range() or self.always_compare_range:
+        try:
             other = self.coerce(other)
+        except:
+            raise TypeError(
+                f"'>=' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+            )
+        if self.is_range() or self.always_compare_range:
             return self.max_comp >= other.min_comp
-        return self.value >= other
+        return self.value >= other.value
 
     def __contains__(self, other):
         if self.is_range():
@@ -274,9 +289,6 @@ class EMuType:
             # Some operations return values that cannot be coerced to the original
             # class, for example, subtracting one date from another
             return val
-
-    def _is_comparable(self, other):
-        return other is not None
 
 
 class EMuFloat(EMuType):

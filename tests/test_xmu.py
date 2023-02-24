@@ -1118,6 +1118,14 @@ def test_dtype_ge(date_string, expected):
 def test_dtype_invalid_comp():
     assert (EMuFloat(0) == None) == False
     assert (EMuFloat(0) != None) == True
+    with pytest.raises(TypeError, match=r"'<' not supported"):
+        assert (EMuFloat(0) < None) == False
+    with pytest.raises(TypeError, match=r"'<=' not supported"):
+        assert (EMuFloat(0) <= None) == False
+    with pytest.raises(TypeError, match=r"'>' not supported"):
+        assert (EMuFloat(0) > None) == False
+    with pytest.raises(TypeError, match=r"'>=' not supported"):
+        assert (EMuFloat(0) >= None) == False
 
 
 @pytest.mark.parametrize(
