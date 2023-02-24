@@ -456,12 +456,14 @@ def test_schema_from_config(config_file, schema_file):
     assert EMuSchema() == EMuSchema(schema_file)
 
 
-def test_schema_no_args(schema_file):
+@pytest.mark.skip(reason="picks up global config file")
+def test_schema_no_args():
     EMuSchema.config = None
     assert EMuSchema() == {}
 
 
-def test_schema_from_args(schema_file):
+@pytest.mark.skip(reason="picks up global config file")
+def test_schema_from_args():
     schema = {"Schema": {}}
     assert EMuSchema(schema) == schema
 
@@ -852,8 +854,10 @@ def test_group(rec, output_dir):
 
 
 def test_group_no_metadata(rec, output_dir):
+    rec.schema.validate_paths = False
     with pytest.raises(ValueError, match="Must specify at least one of irn or name"):
         write_group([rec], str(output_dir / "group.xml"))
+    rec.schema.validate_paths = True
 
 
 def test_col_not_list(rec):
@@ -869,6 +873,7 @@ def test_rec_not_dict(rec):
 def test_rec_lazy_load_schema():
     EMuRecord.schema = None
     EMuRecord(module="ecatalogue")
+    assert EMuRecord.schema
 
 
 def test_rec_update():

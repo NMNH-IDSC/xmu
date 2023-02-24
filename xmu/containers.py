@@ -48,10 +48,26 @@ class EMuConfig(MutableMapping):
     ----------
     path : str
         path to the config file
+    title : str
+        title to write at the top of the config file
+    filename : str
+        default filename for config file
+    classes : list
+        list of classes to add the config object to
     """
 
     def __init__(self, path=None):
         self.path = path
+        self.title = "YAML configuration file for python xmu package"
+        self.filename = ".xmurc"
+        self.classes = [
+            EMuSchema,
+            EMuReader,
+            EMuRecord,
+            EMuColumn,
+            EMuGrid,
+            EMuRow,
+        ]
         self._config = None
 
         # Options as key: (default, comment)
@@ -93,12 +109,8 @@ class EMuConfig(MutableMapping):
         self.load_rcfile()
 
         # Set config parameter on all classes
-        EMuSchema.config = self
-        EMuReader.config = self
-        EMuRecord.config = self
-        EMuColumn.config = self
-        EMuGrid.config = self
-        EMuRow.config = self
+        for cl in self.classes:
+            cl.config = self
 
     def __str__(self):
         return f"{self.__class__.__name__}({pformat(self._config)})"
@@ -128,7 +140,7 @@ class EMuConfig(MutableMapping):
         ----------
         path : str
             path to the rcfile. If not given, checks the current then home
-            directory for an .xmurc file.
+            directory for the filename.
 
         Returns
         -------
@@ -145,24 +157,22 @@ class EMuConfig(MutableMapping):
         paths = default_paths if path is None else [path]
 
         # Create a default configuration based on _options attribute
-        config = {k: v[0] for k, v in self._options.items()}
+        self._config = {k: v[0] for k, v in self._options.items()}
 
         # Check each location for the rcfile
         for path in paths:
-
             # Use a default filename if none given
             if os.path.isdir(path):
-                path = os.path.join(path, ".xmurc")
+                path = os.path.join(path, self.filename)
 
             try:
                 with open(path, encoding="utf-8") as f:
-                    config.update(yaml.safe_load(f))
+                    self.update(yaml.safe_load(f))
                 self.path = path
-            except (FileNotFoundError, TypeError):
+            except FileNotFoundError:
                 pass
 
-        self._config = config
-        return config
+        return self._config
 
     def save_rcfile(self, path=None, overwrite=False):
         """Saves a configuration file
@@ -170,7 +180,7 @@ class EMuConfig(MutableMapping):
         Parameters
         ----------
         path : str
-            path for the rcfile. If a directory, adds .xmurc as the filename.
+            path for the rcfile. If a directory, adds the filename.
             Defaults to the user's home directory.
         overwrite : bool
             whether to overwrite the file if it exists
@@ -182,7 +192,7 @@ class EMuConfig(MutableMapping):
 
         # Use a default filename if none given
         if os.path.isdir(path):
-            path = os.path.join(path, ".xmurc")
+            path = os.path.join(path, self.filename)
 
         # Check if a file already exists at the path
         try:
@@ -198,7 +208,7 @@ class EMuConfig(MutableMapping):
 
         # Write a commented YAML file. Comments aren't supported by pyyaml
         # and have to be hacked in.
-        content = ["# YAML configuration file for python xmu package"]
+        content = [f"# {self.title}"]
         for line in yaml.dump(self._config, sort_keys=False).splitlines():
             try:
                 comment = self._options[line.split(":")[0]][1]
@@ -210,6 +220,49 @@ class EMuConfig(MutableMapping):
 
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(content))
+
+    def update(self, obj, path=None):
+        """Recusrively updates configuration from dict
+
+        Parameters
+        ----------
+        obj : mixed
+            configuration object. Usually a dict, although the function itself
+            may pass a variety of object types.
+        path : list
+            path to the current item
+
+        Returns
+        -------
+        None
+        """
+        if path is None:
+            path = []
+
+        if path:
+            config = self._config
+            for key in path[:-1]:
+                config = config.setdefault(key, {})
+
+        if isinstance(obj, dict):
+            for key, val in obj.items():
+                path.append(key)
+                self.update(val, path)
+                path.pop()
+        elif isinstance(obj, list):
+            config[path[-1]] = []
+            for i, val in enumerate(obj):
+                config[path[-1]].append(type(val)())
+                path.append(i)
+                self.update(val, path)
+                path.pop()
+        else:
+            if isinstance(obj, str) and obj.startswith("~"):
+                obj = os.path.realpath(os.path.expanduser(obj))
+            try:
+                config[path[-1]] = obj
+            except IndexError:
+                config.append(obj)
 
 
 class EMuSchema(dict):
@@ -241,6 +294,9 @@ class EMuSchema(dict):
     config = None
 
     def __init__(self, *args, **kwargs):
+        # Load a config file from one of the default locations if empty
+        if self.config is None:
+            EMuConfig()
 
         # Disable both checks for the initial read
         self.visible_only = False
