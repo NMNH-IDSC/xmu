@@ -399,7 +399,7 @@ class EMuCoord(EMuFloat):
     #: tuple of int : range of allowable values
     bounds = (0, 0)
 
-    #: float : width of one degree lat (anywhere) or long (at the equator)
+    #: float : width of one degree lat (anywhere) or lon (at the equator)
     deg_dist_m = 110567
 
     # dict : uncertainty in meters for deg/min/sec at the equator
@@ -466,8 +466,10 @@ class EMuCoord(EMuFloat):
             return format(float(self), format_spec)
 
     def __str__(self):
-        parts = (self.degrees, self.minutes, self.seconds)
-        return f"{' '.join([str(p) for p in parts if p is not None])} {self.hemisphere}"
+        if self.kind == "dms":
+            parts = (self.degrees, self.minutes, self.seconds)
+            return f"{' '.join([str(p) for p in parts if p is not None])} {self.hemisphere}"
+        return str(self._sign * self.degrees)
 
     def __int__(self):
         return int(float(self))
@@ -488,7 +490,15 @@ class EMuCoord(EMuFloat):
     @property
     def kind(self):
         """Gets kind of verbatim coordinate string"""
-        return "decimal" if self.minutes is None else "dms"
+        try:
+            float(self.verbatim)
+        except ValueError:
+            return "dms"
+        return "decimal"
+
+    @property
+    def format(self):
+        return "{}" if self.kind == "dms" else self.degrees.format
 
     def to_dms(self, unc_m=None):
         """Expresses coordinate as degrees-minutes-seconds
@@ -528,7 +538,6 @@ class EMuCoord(EMuFloat):
 
         last_unc_m = 1e7
         for key, ref_unc_m in self.dms_unc_m.items():
-
             ref_unc_m = self._round_to_exp_10(ref_unc_m)
 
             if ref_unc_m <= unc_m <= last_unc_m:
@@ -619,12 +628,14 @@ class EMuCoord(EMuFloat):
             try:
                 return 1 if float(self.verbatim) >= 0 else -1
             except ValueError:
-                for pat, mod in {
-                    r"(^\+|^{0}|{0}$)".format(self.pos): 1,
-                    r"(^-|^{0}|{0}$)".format(self.neg): -1,
-                }.items():
-                    if re.search(pat, val, flags=re.I):
-                        return mod
+                pass
+
+            for pat, mod in {
+                r"(^\+|^{0}|{0}\.?$)".format(self.pos): 1,
+                r"(^-|^{0}|{0}\.?$)".format(self.neg): -1,
+            }.items():
+                if re.search(pat, val, flags=re.I):
+                    return mod
 
             raise ValueError(
                 f"Could not parse as {self.__class__.__name__}: {self.verbatim}"
