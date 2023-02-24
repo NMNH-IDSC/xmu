@@ -1230,6 +1230,18 @@ def test_dtype_date_tuples(date_tuple, expected):
     assert str(EMuDate(ExtendedDate(*date_tuple))) == expected
 
 
+@pytest.mark.parametrize(
+    "date_tuple,match",
+    [
+        ((10000, 13, 1), r"Month out of range"),
+        ((10000, 1, 32), r"Day out of range"),
+    ],
+)
+def test_dtype_date_invalid(date_tuple, match):
+    with pytest.raises(ValueError, match=match):
+        EMuDate(date_tuple)
+
+
 def test_dtype_date_setters():
     date = EMuDate("1970-01-01")
     date.year = 1971

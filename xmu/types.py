@@ -749,10 +749,14 @@ class EMuDate(EMuType):
         if isinstance(val, str):
             val = val.replace(".", "")
 
-        # Zero-pad two-digit years if no format is provided. EMu does not
-        # zero-pad years less than 1000 during export, which trips up the
+        # Zero-pad two-to-three-digit years if no format is provided. EMu does
+        # not zero-pad years less than 1000 during export, which trips up the
         # date parsing below.
-        if not fmt_provided and isinstance(val, str):
+        if (
+            not fmt_provided
+            and isinstance(val, str)
+            and re.match(r"^\d{1,3}-\d{1,2}-(\d{1,2})?$", val)
+        ):
             val = re.sub(
                 r"^(-?\d{1,3})\b",
                 lambda s: s.group(1).zfill(5 if val[0] == "-" else 4),
@@ -796,6 +800,8 @@ class EMuDate(EMuType):
             val = self._strftime(val, self.format)
             fmt = self.format
             fmts.clear()
+
+            self._validate_extended_date(self)
 
         elif fmt:
             # Assess speciicity of date if custom formatting string provided
@@ -994,7 +1000,9 @@ class EMuDate(EMuType):
                 try:
                     ymd.append(int(match.group(key)))
                 except AttributeError as exc:
-                    raise ValueError("Could not parse string as ExtendedDate") from exc
+                    raise ValueError(
+                        f"Could not parse string as ExtendedDate: {val}"
+                    ) from exc
                 except IndexError:
                     ymd.append(None)
                 except ValueError:
@@ -1008,7 +1016,9 @@ class EMuDate(EMuType):
                     if ad_bc.startswith("BC"):
                         ymd[0] *= -1
 
-            return ExtendedDate(*ymd)
+            ext_date = ExtendedDate(*ymd)
+            EMuDate._validate_extended_date(ext_date)
+            return ext_date
 
     def _strftime(self, val, fmt=None):
         """Formats date as a string
@@ -1058,6 +1068,14 @@ class EMuDate(EMuType):
                 month_abbr = datetime.strptime(str(val.month), "%m").strftime("%b")
                 date_str = date_str.replace("%b", month_abbr)
             return date_str
+
+    @staticmethod
+    def _validate_extended_date(val):
+        if val.month and (val.month < 1 or val.month > 12):
+            raise ValueError(f"Month out of range: {val}")
+        if val.day:
+            if val.day > monthrange(val.year, val.month)[1]:
+                raise ValueError(f"Day out of range: {val}")
 
 
 class EMuTime(EMuType):
