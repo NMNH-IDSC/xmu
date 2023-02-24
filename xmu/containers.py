@@ -1139,7 +1139,7 @@ class EMuRecord(dict):
             self[key] = val
 
     def copy(self):
-        """Overrides the native dict.copy method to return an objet of this class"""
+        """Overrides the native dict.copy method to return an object of this class"""
         return self.__class__(deepcopy(dict(self)), module=_get_module(self))
 
     def grid(self, field, **kwargs):
@@ -1313,7 +1313,7 @@ def _coerce_values(parent, child, key=None):
         except (TypeError, ValueError):
             pass
 
-    # References must be dicts or ints (which are interpreted as IRNS
+    # References must be dicts or ints (which are interpreted as IRNs)
     if (
         is_ref(field)
         and not is_tab(field)

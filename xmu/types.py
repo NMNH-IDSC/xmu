@@ -190,7 +190,7 @@ class EMuType:
         return self
 
     def __ipow__(self, other):
-        result = self ** other
+        result = self**other
         self.value = result.value
         self.format = result.format
         return self
@@ -613,11 +613,11 @@ class EMuCoord(EMuFloat):
             uncertainty in meters, rounded to an exponent of 10
         """
         if self.seconds:
-            unc_m = self.deg_dist_m / (3600 * 10 ** self.seconds.dec_places)
+            unc_m = self.deg_dist_m / (3600 * 10**self.seconds.dec_places)
         elif self.minutes:
-            unc_m = self.deg_dist_m / (60 * 10 ** self.minutes.dec_places)
+            unc_m = self.deg_dist_m / (60 * 10**self.minutes.dec_places)
         else:
-            unc_m = self.deg_dist_m / 10 ** self.degrees.dec_places
+            unc_m = self.deg_dist_m / 10**self.degrees.dec_places
         return self._round_to_exp_10(unc_m)
 
     def _get_sign(self):
@@ -649,7 +649,7 @@ class EMuCoord(EMuFloat):
         frac, exp = modf(log10(val))
         if frac > log10(4.99999999):
             exp += 1
-        return int(10 ** exp)
+        return int(10**exp)
 
 
 class EMuLatitude(EMuCoord):

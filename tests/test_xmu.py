@@ -748,14 +748,13 @@ def test_lookup(key, val, expected):
     assert etree.tostring(rec.to_xml()).decode("utf-8") == expected
 
 
-def test_rec_from_dir(xml_file, output_dir, expected_rec):
+def test_rec_from_dir(output_dir, expected_rec):
     reader = EMuReader(output_dir)
     for rec in reader:
         assert rec == expected_rec
 
 
-def test_rec_from_json(xml_file, output_dir, expected_rec):
-
+def test_rec_from_json(output_dir):
     reader = EMuReader(output_dir)
     for rec in reader:
         rec_from_xml = EMuRecord(rec, module=reader.module)
@@ -1305,7 +1304,7 @@ def test_dtype_float_operations():
     assert val // 2 == pytest.approx(0)
     assert val % 0.12 == pytest.approx(0)
     assert divmod(val, 0.12) == (1, 0)
-    assert val ** 2 == pytest.approx(0.0144)
+    assert val**2 == pytest.approx(0.0144)
 
     assert val == 0.12
     assert val != 0.121

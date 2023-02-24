@@ -155,4 +155,3 @@ cython_debug/
 
 # Project-specific files
 _preflight.py
-environment-dev.yml
