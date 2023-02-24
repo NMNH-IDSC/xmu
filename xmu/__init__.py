@@ -14,6 +14,6 @@ from .utils import (
     strip_tab,
 )
 
-__version__ = "0.1b4"
+__version__ = "0.1b5"
 __author__ = "Adam Mansur"
 __credits__ = "Smithsonian National Museum of Natural History"
