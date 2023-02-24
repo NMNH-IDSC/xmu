@@ -1345,6 +1345,7 @@ def test_dtype_float_type_conversions():
     assert float(val) == 0.12
 
 
+@pytest.mark.skip(reason="no longer the expected behavior")
 def test_dtype_float_no_format():
     with pytest.raises(ValueError, match="Must provide fmt when passing a float"):
         EMuFloat(0.12)

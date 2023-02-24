@@ -329,8 +329,11 @@ class EMuFloat(EMuType):
 
         fmt_provided = fmt is not None
 
+        if isinstance(val, str):
+            val = val.replace(",", "")
+
         if isinstance(val, float) and not fmt_provided:
-            raise ValueError("Must provide fmt when passing a float")
+            val = str(val)
 
         if isinstance(val, self.__class__):
             self.value = val.value
