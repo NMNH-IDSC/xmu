@@ -910,10 +910,15 @@ class EMuGrid(MutableSequence):
             matches = []
             for row in self:
                 for key_, val in key.items():
-                    row_val = self._transform(row.get(key_))
+                    try:
+                        row_val = self._transform(row.get(key_))
+                    except IndexError:
+                        raise IndexError(
+                            f"Key in query does not appear in all rows: {repr(key_)}"
+                        )
                     match_val = self._transform(val)
                     # Match if values are equal or if row_val matches one of
-                    # mutliple options given for match_val
+                    # multiple options given for match_val
                     if row_val == match_val or (
                         row_val and match_val and row_val in match_val.split("|")
                     ):
