@@ -604,6 +604,10 @@ class EMuColumn(list):
         backend name of an EMu module
     field : str
         name of an EMu field
+    dict_class : EMuRecord
+        class to use for dicts
+    list_class : EMuColumn
+        class to use for lists
 
     Attributes
     ----------
@@ -611,8 +615,10 @@ class EMuColumn(list):
         backend name of an EMu module
     field : str
         name of an EMu field
-    dict_class : class
-        class to apply to dicts that are children of this element
+    dict_class : EMuRecord
+        class to use for dicts
+    list_class : EMuColumn
+        class to use for lists
     """
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
@@ -623,11 +629,13 @@ class EMuColumn(list):
     #: when an EMuSchema object is created.
     schema = None
 
-    def __init__(self, vals=None, module=None, field=None):
-        """Loads a vocabulary from a file or dict"""
+    def __init__(
+        self, vals=None, module=None, field=None, dict_class=None, list_class=None
+    ):
         self.module = module
         self.field = field
-        self.dict_class = EMuRecord
+        self.dict_class = dict_class if dict_class else DEFAULT_RECORD
+        self.list_class = list_class if list_class else DEFAULT_COLUMN
         if self.schema and not self.module:
             raise ValueError(
                 f"Must provide module when schema is used (one of {self.schema.modules})"
@@ -1033,8 +1041,10 @@ class EMuRecord(dict):
         backend name of an EMu module
     field : str
         name of an EMu field
-    list_class : list-like
-        class to use for lists in the dict
+    dict_class : EMuRecord
+        class to use for dicts
+    list_class : EMuColumn
+        class to use for lists
 
     Attributes
     ----------
@@ -1042,8 +1052,10 @@ class EMuRecord(dict):
         backend name of an EMu module
     field : str
         name of an EMu field
-    list_class : str
-        class to use for lists in the dict
+    dict_class : EMuRecord
+        class to use for dicts
+    list_class : EMuColumn
+        class to use for lists
     """
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
@@ -1054,10 +1066,13 @@ class EMuRecord(dict):
     #: when an EMuSchema object is created.
     schema = None
 
-    def __init__(self, rec=None, module=None, field=None, list_class=EMuColumn):
+    def __init__(
+        self, rec=None, module=None, field=None, dict_class=None, list_class=None
+    ):
         self.module = module
         self.field = field
-        self.list_class = list_class
+        self.dict_class = dict_class if dict_class else DEFAULT_RECORD
+        self.list_class = list_class if list_class else DEFAULT_COLUMN
 
         # Load a config file from one of the default locations if empty
         if self.config is None:
@@ -1269,17 +1284,17 @@ def _coerce_values(parent, child, key=None):
     """Coerces child containers and values to specific classes"""
 
     if isinstance(parent, dict):
-        dict_class = parent.__class__
+        dict_class = parent.dict_class
         list_class = parent.list_class
-        module = _get_module(parent)
         field = key
+        module = _get_module(parent)
 
-    # Lists inherit the field attribute from their parent
+    # List items inherit the field attribute from their parent
     elif isinstance(parent, (list, tuple)):
         dict_class = parent.dict_class
-        list_class = parent.__class__
-        module = parent.module
+        list_class = parent.list_class
         field = parent.field
+        module = parent.module
 
     # Validate field if schema has been loaded
     field_info = None
@@ -1454,3 +1469,7 @@ def _split_path(path):
     if isinstance(path, list):
         return tuple(path)
     raise ValueError(f"Invalid path format: {path}")
+
+
+DEFAULT_RECORD = EMuRecord
+DEFAULT_COLUMN = EMuColumn
