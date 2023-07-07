@@ -1311,13 +1311,13 @@ def _coerce_values(parent, child, key=None):
         field = f"{strip_mod(field)}_inner"
 
     # Tables must be list-like
-    if (
-        field != parent.field
-        and is_tab(field)
-        and not isinstance(child, (list, tuple))
-        and child is not None
-    ):
-        raise TypeError(f"Columns must be lists ({child} was assigned to {field})")
+    if field != parent.field and is_tab(field) and not isinstance(child, (list, tuple)):
+        if child is None:
+            child = []
+        else:
+            raise TypeError(
+                f"Columns must be lists ({repr(child)} was assigned to {field})"
+            )
 
     # Simplify IRN-only references
     if is_ref(field):

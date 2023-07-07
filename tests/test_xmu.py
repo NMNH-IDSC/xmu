@@ -610,7 +610,7 @@ def test_row_from_ungrouped(rec):
 def test_grid_by_index(grid):
     assert grid[0] == {
         "EmuDate0": EMuDate("1970-01-01"),
-        "EmuNestedTable_nesttab": None,
+        "EmuNestedTable_nesttab": [],
         "EmuRef_tab": {},
         "EmuTable_tab": "Text",
     }
@@ -622,7 +622,7 @@ def test_grid_by_index(grid):
     }
     assert grid[2] == {
         "EmuDate0": EMuDate("1970"),
-        "EmuNestedTable_nesttab": None,
+        "EmuNestedTable_nesttab": [],
         "EmuRef_tab": {"irn": 1000000, "EmuRefOnly": "Text"},
         "EmuTable_tab": "",
     }
@@ -669,7 +669,7 @@ def test_grid_del_item(rec):
     grid = rec.grid("EmuTable_tab").pad()
     del grid[0]
     assert rec["EmuDate0"] == [EMuDate("Jan 1970"), EMuDate("1970")]
-    assert rec["EmuNestedTable_nesttab"] == [["Text"], None]
+    assert rec["EmuNestedTable_nesttab"] == [["Text"], []]
     assert rec["EmuRef_tab"] == [{}, {"irn": 1000000, "EmuRefOnly": "Text"}]
     assert rec["EmuTable_tab"] == ["Text", ""]
 
