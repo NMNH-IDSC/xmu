@@ -735,16 +735,20 @@ class EMuDate(EMuType):
     }
     formats = {"day": "%Y-%m-%d", "month": "%b %Y", "year": "%Y"}
 
-    def __init__(self, val, fmt=None):
+    def __init__(self, *val, fmt=None):
         """Initialize an EMuDate object
 
         Parameters
         ----------
-        val : str, int, or datetime.date
-            the date. If an int, must be a year only.
+        val : str, int, datetime.date, or three ints
+            the date. If an int, must be a year only. If multiple values are given,
+            they must be a year, month, and day as ints.
         fmt : str
             a date format string
         """
+
+        if len(val) == 1:
+            val = val[0]
 
         self.verbatim = val
         self.always_compare_range = True

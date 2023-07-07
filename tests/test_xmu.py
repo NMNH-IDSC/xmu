@@ -994,6 +994,13 @@ def test_dtype_date(date_string, kind, year, month, day, formatted, min_val, max
     assert val.max_value == date(*[int(n) for n in max_val.split("-")])
 
 
+def test_dtype_date_parse():
+    date_from_str = EMuDate("2022-02-25")
+    date_from_tuple = EMuDate((2022, 2, 25))
+    date_from_args = EMuDate(2022, 2, 25)
+    assert date_from_str == date_from_tuple == date_from_args
+
+
 @pytest.mark.parametrize(
     "date_string,expected",
     [
