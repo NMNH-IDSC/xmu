@@ -1108,7 +1108,12 @@ class EMuRecord(dict):
             if len(path) > 1:
                 obj = self
                 for key in path:
-                    obj = obj[key]
+                    try:
+                        obj = obj[key]
+                    except TypeError:
+                        if obj is None:
+                            raise KeyError
+                        raise
                 return obj
             key = path[0]
             return super().__getitem__(key)
