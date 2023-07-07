@@ -468,7 +468,6 @@ class EMuSchema(dict):
             whether to overwrite an existing group
         """
         for field in fields:
-
             info = self.get_field_info(module, field)
 
             # Group definitions in the schema point to the client field that
@@ -1345,18 +1344,21 @@ def _coerce_values(parent, child, key=None):
         and not isinstance(child, dict)
         and child is not None
     ):
-        raise TypeError(f"References must be dicts ({child} was assigned to {field})")
+        raise TypeError(
+            f"References must be dicts ({repr(child)} was assigned to {field})"
+        )
 
     # Sequences must only be used in tables
     if isinstance(child, (list, tuple)) and not is_tab(field):
         raise TypeError(
-            f"Sequence assigned to atomic field ({child} was assigned to {field})"
+            f"Sequence assigned to atomic field ({repr(child)} was assigned to {field})"
         )
 
-    # Coerce containers to the proper types
+    # References should use the target module and drop the field
     if isinstance(child, dict) and not isinstance(child, dict_class):
-        child = dict_class(child, module=module, field=field)
+        child = dict_class(child, module=_get_module(parent, field), field=None)
 
+    # Columns
     elif isinstance(child, (list, tuple)) and not isinstance(child, list_class):
         child = list_class(child, module=module, field=field)
 
@@ -1447,7 +1449,7 @@ def _get_field_info(module, path, visible_only=None):
         modules.append(obj.get("RefTable", modules[-1]))
 
     # ItemName *appears* to be populated only for fields that appear in the client
-    module = modules[-1]
+    module = modules[-2]
     if (
         visible_only
         and not obj.get("ItemName")
@@ -1458,10 +1460,12 @@ def _get_field_info(module, path, visible_only=None):
     return obj
 
 
-def _get_module(obj):
+def _get_module(obj, field=None):
     """Gets module name"""
-    if obj.schema is not None and obj.field is not None and is_ref(obj.field):
-        return obj.schema.get_field_info(obj.module, obj.field)["RefTable"]
+    if field is None:
+        field = obj.field
+    if obj.schema is not None and field is not None and is_ref(field):
+        return obj.schema.get_field_info(obj.module, field)["RefTable"]
     return obj.module
 
 
