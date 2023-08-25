@@ -1358,12 +1358,20 @@ def _coerce_values(parent, child, key=None):
     if isinstance(child, dict) and not isinstance(child, dict_class):
         child = dict_class(child, module=_get_module(parent, field), field=None)
 
-    # Columns
+    # Coerce columns to given list class
     elif isinstance(child, (list, tuple)) and not isinstance(child, list_class):
         child = list_class(child, module=module, field=field)
 
     # Coerce non-list, non-dict data to an appropriate type if a schema is defined
     elif field_info and not isinstance(child, (dict, list)):
+        
+        # Coerce common NAs to None
+        if (
+            isinstance(child, float) and str(child) == "nan"
+            or str(child) in ("<NA>", "NaT")
+        ):
+            child = None
+        
         # Coerce empty values to empty strings in Text fields. Exclude
         # inner nested tables so that empty rows can be signified by None.
         dtype = field_info["DataType"]
