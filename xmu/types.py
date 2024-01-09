@@ -459,6 +459,12 @@ class EMuCoord(EMuFloat):
         if self.value < min(self.bounds) or self.value > max(self.bounds):
             raise ValueError(f"Coordinate out of bounds ({val} not in {self.bounds})")
 
+        if self.minutes and self.minutes > 60:
+            raise ValueError(f"Invalid minutes: {val}")
+
+        if self.seconds and self.seconds > 60:
+            raise ValueError(f"Invalid seconds: {val}")
+
     def __format__(self, format_spec):
         try:
             return format(str(self), format_spec)

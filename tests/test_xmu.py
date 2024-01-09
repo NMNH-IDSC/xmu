@@ -1449,6 +1449,16 @@ def test_dtype_coord_unsigned():
         EMuLatitude("45 30 15")
 
 
+def test_dtype_coord_invalid_minutes():
+    with pytest.raises(ValueError, match=r"Invalid minutes"):
+        EMuLongitude("45 90 15 E")
+
+
+def test_dtype_coord_invalid_seconds():
+    with pytest.raises(ValueError, match=r"Invalid seconds"):
+        EMuLongitude("45 30 75 E")
+
+
 @pytest.mark.parametrize(
     "field,expected",
     [
