@@ -27,7 +27,7 @@ from xmu import (
     is_tab,
     strip_mod,
     strip_tab,
-    write_import,
+    write_xml,
     write_group,
 )
 from xmu.types import ExtendedDate
@@ -761,7 +761,7 @@ def test_rec_from_json(output_dir):
 
     simple_rec = EMuRecord({"irn": 1234567}, module="emain")
     records = [rec_from_xml] + [simple_rec] * 5000
-    write_import(records, output_dir / "xmldata_5000.xml", kind="emu")
+    write_xml(records, output_dir / "xmldata_5000.xml", kind="emu")
 
     xml_path = str(output_dir / "xmldata_5000.xml")
     json_path = str(output_dir / "xmldata_5000.json")
@@ -792,7 +792,7 @@ def test_rec_from_zip(xml_file, output_dir, expected_rec):
 
 def test_rec_round_trip(rec, output_dir):
     path = str(output_dir / "import.xml")
-    write_import([rec], path, kind="emu")
+    write_xml([rec], path, kind="emu")
     reader = EMuReader(path)
     for rec_ in reader:
         assert EMuRecord(rec_, module=reader.module) == rec
@@ -842,8 +842,9 @@ def test_write_csv(xml_file, output_dir):
         ]
 
 
+def test_write_xml_invalid_kind(rec, output_dir):
     with pytest.raises(ValueError, match="kind must be one of"):
-        write_import([rec], str(output_dir / "import.xml"), kind="invalid")
+        write_xml([rec], str(output_dir / "import.xml"), kind="invalid")
 
 
 def test_group(rec, output_dir):

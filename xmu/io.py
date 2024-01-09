@@ -511,7 +511,15 @@ def write_csv(records, path, **kwargs):
         writer.writerows(({k: r.get(k) for k in fieldnames} for r in flattened))
 
 
-def write_import(records, path, **kwargs):
+def write_import(*args, **kwargs):
+    """Writes records to an EMu import file
+
+    Alias for write_xml()
+    """
+    return write_xml(*args, **kwargs)
+
+
+def write_xml(records, path, **kwargs):
     """Writes records to an EMu import file
 
     Parameters
