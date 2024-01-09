@@ -1,15 +1,17 @@
 """Defines objects used to read and write XML for Axiell EMu"""
+import csv
 import datetime as dt
 import glob
 import json
 import logging
 import os
+import re
 import time
 import zipfile
 
 from lxml import etree
 
-from .utils import is_nesttab, is_nesttab_inner, is_ref, is_ref_tab, is_tab
+from .utils import flatten, is_nesttab, is_ref, is_ref_tab, is_tab
 
 
 logger = logging.getLogger(__name__)
@@ -179,6 +181,18 @@ class EMuReader:
         if self._job_start:
             self.report_progress()
 
+    def to_csv(self, path, **kwargs):
+        """Writes records in reader object to CSV
+
+        Parameters
+        ----------
+        path : str
+            path to write the CSV file
+        kwargs :
+            any keyword argument accepted by open()
+        """
+        return write_csv(self, path, **kwargs)
+
     def to_json(self, path=None, **kwargs):
         """Writes JSON version of XML to file
 
@@ -279,7 +293,6 @@ class EMuReader:
             new_elems = []
             for obj, parent_name, elem in elements:
                 for child in elem:
-
                     # Add an empty rows to a nested table, which do not contain
                     # child nodes when exported from EMu
                     if child is None:
@@ -456,6 +469,46 @@ class _ByteDecoder:
         if exception:
             raise exception
         self._stream.close()
+
+
+def write_csv(records, path, **kwargs):
+    """Writes records to CSV
+
+    Parameters
+    ----------
+    records : list-like
+        list of EMuRecords to be written
+    path : str
+        path to write the CSV file
+    kwargs :
+        any keyword argument accepted by open()
+    """
+    flattened = [flatten(r) for r in records]
+
+    keys = {}
+    for rec in flattened:
+        keys.update({k: 1 for k in rec})
+
+    # Reorder keys to account for varying grid lengths
+    grouped = {}
+    for key in keys:
+        grouped.setdefault(re.sub(r"\.\d+\.", ".x.", key), []).append(key)
+
+    grouped = {
+        k: sorted(v, key=lambda s: ".".join([s.zfill(8) for s in s.split(".")]))
+        for k, v in grouped.items()
+    }
+
+    fieldnames = []
+    for group in grouped.values():
+        fieldnames.extend(group)
+
+    kwargs.setdefault("encoding", "utf-8-sig")
+    kwargs.setdefault("newline", "")
+    with open(path, "w", **kwargs) as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(({k: r.get(k) for k in fieldnames} for r in flattened))
 
 
 def write_import(records, path, **kwargs):

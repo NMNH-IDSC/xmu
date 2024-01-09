@@ -831,7 +831,17 @@ def test_report_progress(xml_file, output_dir, capsys):
     assert re.match(r"\d+(,\d{3})* records processed \(total=", capsys.readouterr().out)
 
 
-def test_write_import_invalid_kind(rec, output_dir):
+def test_write_csv(xml_file, output_dir):
+    reader = EMuReader(xml_file)
+    path = str(output_dir / "test.csv")
+    reader.to_csv(path)
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        assert f.read().splitlines() == [
+            "irn,EmuText,EmuInteger,EmuFloat,EmuLatitude,EmuLongitude,EmuRef.irn,EmuRef.EmuRefOnly,EmuDate0.1.EmuDate,EmuDate0.2.EmuDate,EmuDate0.3.EmuDate,EmuTime0.1.EmuTime,EmuTime0.2.EmuTime,EmuTime0.3.EmuTime,EmuTable_tab.1.EmuTable,EmuTable_tab.2.EmuTable,EmuTableUngrouped_tab.1.EmuTableUngrouped,EmuRef_tab.3.EmuRef.irn,EmuRef_tab.3.EmuRef.EmuRefOnly,EmuNestedTable_nesttab.1.EmuNestedTable,EmuNestedTable_nesttab.2.EmuNestedTable.1.2.EmuNestedTable",
+            "1000000,Text,1,1.0,45 30 15 N,-130 10 5 W,1000000,Text,1970-01-01,Jan 1970,1970,9:00,12:00,15:00,Text,Text,Text,1000000,Text,,Text",
+        ]
+
+
     with pytest.raises(ValueError, match="kind must be one of"):
         write_import([rec], str(output_dir / "import.xml"), kind="invalid")
 

@@ -183,3 +183,34 @@ def get_mod(field):
     if not re.match(MOD_PATTERN, mod):
         raise ValueError(f"Invalid modifier: {mod}")
     return mod.strip("()")
+
+
+def flatten(obj, path=None, result=None):
+    """Flattens a record to a one-level dict
+
+    Parameters
+    ----------
+    obj : list
+        a list of EMuRecords
+
+    Returns
+    -------
+    list
+        records flattened to one level
+    """
+    if path is None:
+        path = []
+        result = {}
+    if isinstance(obj, dict):
+        for key, val in obj.items():
+            path.append(key)
+            flatten(val, path, result)
+            path.pop()
+    elif isinstance(obj, list):
+        for i, val in enumerate(obj):
+            path.append(f"{i + 1}.{strip_tab(path[-1])}")
+            flatten(val, path, result)
+            path.pop()
+    else:
+        result[".".join(path)] = obj
+    return result
