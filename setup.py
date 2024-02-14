@@ -26,7 +26,7 @@ setup(
     description="Reads and writes XML for Axiell EMu",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="0.1b5",
+    version="0.1b6",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
@@ -35,6 +35,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Text Processing :: Markup :: XML",
     ],
     url="https://github.com/adamancer/xmu.git",

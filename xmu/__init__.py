@@ -1,4 +1,5 @@
 """Reads and writes XML for Axiell EMu"""
+
 from .containers import EMuColumn, EMuConfig, EMuGrid, EMuRow, EMuRecord, EMuSchema
 from .io import EMuReader, write_csv, write_group, write_import, write_xml
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
@@ -15,6 +16,6 @@ from .utils import (
     strip_tab,
 )
 
-__version__ = "0.1b5"
+__version__ = "0.1b6"
 __author__ = "Adam Mansur"
 __credits__ = "Smithsonian National Museum of Natural History"

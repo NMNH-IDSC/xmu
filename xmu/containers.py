@@ -1,4 +1,5 @@
 """Defines containers to read and write various EMu objects"""
+
 import json
 import logging
 import os
@@ -1364,14 +1365,14 @@ def _coerce_values(parent, child, key=None):
 
     # Coerce non-list, non-dict data to an appropriate type if a schema is defined
     elif field_info and not isinstance(child, (dict, list)):
-        
         # Coerce common NAs to None
         if (
-            isinstance(child, float) and str(child) == "nan"
+            isinstance(child, float)
+            and str(child) == "nan"
             or str(child) in ("<NA>", "NaT")
         ):
             child = None
-        
+
         # Coerce empty values to empty strings in Text fields. Exclude
         # inner nested tables so that empty rows can be signified by None.
         dtype = field_info["DataType"]

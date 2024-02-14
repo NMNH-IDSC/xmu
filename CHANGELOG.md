@@ -7,6 +7,20 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b6
+-----
+
+- Added support for Python 3.12
+- Added functions to write CSV from XML files
+- Changed EMuRecord to coerce NAs to None and to coerce empty nested
+  tables to empty lists
+- Changed write_import() to write_xml(). The write_import() function
+  remains as an alias.
+- Changed EMuCoord to catch out-of-bounds minutes and seconds
+- Changed EMuDate to handle up to three arguments (date or (year, month,
+  day))
+- Fixed bug identifying the module in a reference
+
 0.1b5
 -----
 

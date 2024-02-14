@@ -1,4 +1,5 @@
 """Functions to assess whether EMu field names are tables, references, etc."""
+
 import re
 from functools import lru_cache
 
