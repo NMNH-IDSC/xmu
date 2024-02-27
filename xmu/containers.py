@@ -294,6 +294,8 @@ class EMuSchema(dict):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
+    #: 
+    #: :meta hide-value:
     config = None
 
     def __init__(self, *args, **kwargs):
@@ -625,10 +627,14 @@ class EMuColumn(list):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
+    #: 
+    #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
+    #: 
+    #: :meta hide-value:
     schema = None
 
     def __init__(
@@ -772,10 +778,14 @@ class EMuRow(MutableMapping):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
+    #: 
+    #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
+    #: 
+    #: :meta hide-value:
     schema = None
 
     def __init__(self, rec, path, index, fill_value=None):
@@ -871,10 +881,14 @@ class EMuGrid(MutableSequence):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
+    #: 
+    #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
+    #: 
+    #: :meta hide-value:
     schema = None
 
     def __init__(self, rec, path, fill_value=None):
@@ -1085,10 +1099,14 @@ class EMuRecord(dict):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
+    #: 
+    #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
+    #: 
+    #: :meta hide-value:
     schema = None
 
     def __init__(
