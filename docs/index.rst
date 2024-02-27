@@ -8,7 +8,7 @@ Sciences at the Smithsonian National Museum of Natural History to
 streamline the process of getting data into and out of EMu.
 
 Source code for this project is located on
-`GitHub <https://github.com/adamancer/xmu>`_.
+`GitHub <https://github.com/NMNH-IDSC/xmu>`_.
 
 Contents
 --------

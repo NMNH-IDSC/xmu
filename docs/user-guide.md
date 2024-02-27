@@ -10,7 +10,7 @@ Install xmu with pip:
 
 Or install from the GitHub repository using git and pip:
 
-    git clone https://github.com/adamancer/xmu
+    git clone https://github.com/NMNH-IDSC/xmu
     cd xmu
     pip install .
 

@@ -14,7 +14,7 @@ long_description = (
     "```"
     "\n\n"
     "Learn more:\n\n"
-    "+ [GitHub repsository](https://github.com/adamancer/xmu)\n"
+    "+ [GitHub repsository](https://github.com/NMNH-IDSC/xmu)\n"
     "+ [Documentation](https://xmu.readthedocs.io/en/latest/)"
 )
 
@@ -38,7 +38,7 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Topic :: Text Processing :: Markup :: XML",
     ],
-    url="https://github.com/adamancer/xmu.git",
+    url="https://github.com/NMNH-IDSC/xmu.git",
     license="MIT",
     packages=find_packages(),
     install_requires=["joblib", "lxml", "pyyaml"],
