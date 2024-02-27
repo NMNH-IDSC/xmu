@@ -1,6 +1,14 @@
 """Reads and writes XML for Axiell EMu"""
 
-from .containers import EMuColumn, EMuConfig, EMuGrid, EMuRow, EMuRecord, EMuSchema
+from .containers import (
+    EMuColumn,
+    EMuConfig,
+    EMuEncoder,
+    EMuGrid,
+    EMuRow,
+    EMuRecord,
+    EMuSchema,
+)
 from .io import EMuReader, write_csv, write_group, write_import, write_xml
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
 from .utils import (
