@@ -18,7 +18,7 @@ Quickstart
 ----------
 
 ``` python
-from xmu import EMuReader, EMuRecord, EMuSchema, write_import
+from xmu import EMuReader, EMuRecord, EMuSchema, write_xml
 
 # Loading an EMu schema file allows xmu to validate data, coerce data to
 # the proper type, and manage grids
@@ -60,5 +60,22 @@ for rec in reader:
     records.append(update)
 
 # Write the XML import file from the list of EMu records
-write_import(records, "update.xml")
+write_xml(records, "update.xml")
+```
+
+You can use the experimental
+:py:meth:`~xmu.io.EMuReader.from_xml_parallel` method to read large XML
+files more quickly. For example, to create a dict mapping IRNs to
+records:
+
+``` python
+def callback(path):
+    reader = EMuReader("xmldata.xml")
+    results = {}
+    for rec in reader:
+        rec = EMuRecord(rec, module=reader.module)
+        results[rec["irn"]] = rec
+    return results
+
+results = EMuReader("xmldata.xml").from_xml_parallel(callback)
 ```
