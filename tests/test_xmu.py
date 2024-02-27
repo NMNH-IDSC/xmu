@@ -756,8 +756,105 @@ def test_rec_from_dir(output_dir, expected_rec):
         assert rec == expected_rec
 
 
-def test_rec_from_json(output_dir):
-    reader = EMuReader(output_dir)
+def test_read_from_parallel(xml_file, expected_rec):
+    def callback(path):
+        for rec in EMuReader(path):
+            return rec["irn"]
+
+    results = EMuReader(xml_file).from_xml_parallel(callback, num_parts=8)
+    assert results == ["1000000"]
+
+
+def test_read_from_parallel_list(output_dir):
+    def callback(path):
+        results = []
+        for rec in EMuReader(path):
+            results.append(EMuRecord(rec, module="emain"))
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_list.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    results = EMuReader(xml_path).from_xml_parallel(callback, num_parts=8)
+    for i, rec in enumerate(results):
+        assert rec["irn"] == i
+
+
+def test_read_from_parallel_dict_combine(output_dir):
+    def callback(path):
+        results = {}
+        for i, _ in enumerate(EMuReader(path)):
+            results[i] = 1
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_dict_combine.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    results = EMuReader(xml_path).from_xml_parallel(
+        callback, num_parts=8, handle_repeated_keys="combine"
+    )
+    assert results[0] == [1] * 8
+
+
+def test_read_from_parallel_dict_keep(output_dir):
+    def callback(path):
+        results = {}
+        for rec in EMuReader(path):
+            results["irn"] = rec["irn"]
+            break
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_dict_keep.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    results = EMuReader(xml_path).from_xml_parallel(
+        callback, num_parts=8, handle_repeated_keys="keep"
+    )
+    assert results["irn"] == "0"
+
+
+def test_read_from_parallel_dict_overwrite(output_dir):
+    def callback(path):
+        results = {}
+        for rec in EMuReader(path):
+            results["irn"] = rec["irn"]
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_dict_overwite.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    results = EMuReader(xml_path).from_xml_parallel(
+        callback, num_parts=8, handle_repeated_keys="overwrite"
+    )
+    assert results["irn"] == "63"
+
+
+def test_read_from_parallel_dict_raise(output_dir):
+    def callback(path):
+        results = {}
+        for i, _ in enumerate(EMuReader(path)):
+            results[i] = 1
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_dict_combine.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    with pytest.raises(KeyError, match=r"Duplicate keys returned"):
+        EMuReader(xml_path).from_xml_parallel(
+            callback, num_parts=8, handle_repeated_keys="raise"
+        )
+
+
     for rec in reader:
         rec_from_xml = EMuRecord(rec, module=reader.module)
 
@@ -798,6 +895,13 @@ def test_rec_round_trip(rec, output_dir):
     reader = EMuReader(path)
     for rec_ in reader:
         assert EMuRecord(rec_, module=reader.module) == rec
+
+
+def test_len(output_dir):
+    records = [EMuRecord({"irn": 1234567}, module="emain")] * 100
+    path = output_dir / "xmldata_len.xml"
+    write_xml(records, path, kind="emu")
+    assert len(EMuReader(path)) == 100
 
 
 @pytest.mark.parametrize(

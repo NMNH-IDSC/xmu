@@ -41,7 +41,7 @@ setup(
     url="https://github.com/adamancer/xmu.git",
     license="MIT",
     packages=find_packages(),
-    install_requires=["lxml", "pyyaml"],
+    install_requires=["joblib", "lxml", "pyyaml"],
     include_package_data=True,
     zip_safe=False,
 )

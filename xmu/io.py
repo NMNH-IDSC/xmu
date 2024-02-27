@@ -5,11 +5,15 @@ import datetime as dt
 import glob
 import json
 import logging
+import mmap
 import os
 import re
+import shutil
+import tempfile
 import time
 import zipfile
 
+from joblib import Parallel, delayed
 from lxml import etree
 
 from .utils import flatten, is_nesttab, is_ref, is_ref_tab, is_tab
@@ -67,6 +71,12 @@ class EMuReader:
         for rec in self.from_file():
             yield rec
 
+    def __len__(self):
+        counts = self.counts()
+        if isinstance(counts, int):
+            return counts
+        raise NotImplementedError("Not implemented when multiple source files provided")
+
     def from_file(self):
         """Reads data from file, using JSON if possible
 
@@ -89,46 +99,159 @@ class EMuReader:
 
         return self.from_json()
 
-    def from_xml(self):
+    def from_xml(self, start=0, limit=None):
         """Reads data from XML
+
+        Parameters
+        ----------
+        start : int
+            index of record to start processing
+        limit : int
+            number of records to process from start. If omitted, all records
+            are processed.
 
         Yields
         ------
         dict
             EMu record
         """
-        for filelike in self.files:
-            logger.info("Reading records from %s", filelike)
-            self._job_start = None
-            self._job_done = False
-            self._notify_start = None
-            self._notify_count = 0
-            with filelike.open("rb") as source:
-                try:
-                    context = etree.iterparse(source, events=["end"], tag="tuple")
-                    for _, element in context:
-                        # Process children of module table only
-                        parent = element.getparent().get("name")
-                        if parent is not None and parent.startswith("e"):
-                            try:
-                                yield self._parse(element)
-                            finally:
-                                element.clear()
-                                # while element.getprevious() is not None:
-                                #    del element.getparent()[0]
-                                self._notify_count += 1
-                                if not self._notify_count % 5000:
-                                    logger.info(
-                                        "Read %s records from %s",
-                                        self._notify_count,
-                                        filelike,
-                                    )
-                finally:
-                    del context
-            logger.info("Read %s records total", self._notify_count)
-            self._job_done = True
+        try:
+            for filelike in self.files:
+                logger.info("Reading records from %s", filelike)
+                self._job_start = None
+                self._job_done = False
+                self._notify_start = None
+                self._notify_count = 0
+                with filelike.open("rb") as source:
+                    try:
+                        context = etree.iterparse(source, events=["end"], tag="tuple")
+                        for _, element in context:
+                            # Process children of module table only
+                            parent = element.getparent().get("name")
+                            if parent is not None and parent.startswith("e"):
+                                try:
+                                    if self._notify_count >= start:
+                                        yield self._parse(element)
+                                finally:
+                                    element.clear()
+                                    # while element.getprevious() is not None:
+                                    #    del element.getparent()[0]
+                                    self._notify_count += 1
+                                    if not self._notify_count % 5000:
+                                        logger.info(
+                                            "Read %s records from %s",
+                                            self._notify_count,
+                                            filelike,
+                                        )
+                                    if (
+                                        limit is not None
+                                        and self._notify_count >= start + limit
+                                    ):
+                                        break
+                    finally:
+                        del context
+                logger.info("Read %s records total", self._notify_count)
+                self._job_done = True
+        finally:
             if self._job_start:
                 self.report_progress()
+
+    def from_xml_parallel(
+        self, callback, num_parts=64, handle_repeated_keys="overwrite"
+    ):
+        """Reads data from XML in parallel
+
+        Experimental. Works by creating temporary copies of the XML file, then reading from
+        those files in parallel. Seems to work best with a small number of copies.
+
+        Parameters
+        ----------
+        callback : function
+            function to run on the import file
+        num_parts : int
+            number of parts to split the file into
+        handle_repeated_keys : str
+            defines how to handle keys that repeat across dicts returned by different jobs.
+            Must be one of 'combine' (which combines entires in a list), 'keep' (which keeps
+            the first key found), 'overwrite' (which overwrites the existing key), or 'raise'
+            (which raises a KeyError). Ignored if callback does not return a dict.
+
+        Yields
+        ------
+        mixed
+            result of callback function combined across jobs. If dict, results are combined
+            into a single dict. If list, results are combined into a single list. If another
+            type, returns a list of results returned by the callback.
+        """
+
+        if len(self.files) > 1 or not self.files[0].path.lower().endswith(".xml"):
+            raise NotImplementedError(
+                "Not implemented when multiple source files provided"
+            )
+
+        allowed = ("combine", "keep", "overwrite", "raise")
+        if handle_repeated_keys not in allowed:
+            raise ValueError(f"dict_behvaior must be one of the following: {allowed}")
+
+        # Create temporary directory
+        tmpdir = tempfile.mkdtemp(prefix="xmu-")
+
+        try:
+
+            files = []
+            with open(self.files[0].path, "rb") as f:
+                with mmap.mmap(
+                    f.fileno(), length=0, access=mmap.ACCESS_READ, offset=0
+                ) as m:
+                    content = m.read()
+                    sep = b"<!-- Row"
+                    records = content.split(sep)
+                    header = records.pop(0)
+                    step = int(len(records) / num_parts) + 1
+                    for i in range(0, len(records), step):
+                        group = records[i : i + step]
+                        tmp = tempfile.NamedTemporaryFile(
+                            "wb", prefix="xmu-", suffix=".xml", dir=tmpdir, delete=False
+                        )
+                        with open(tmp.name, "wb") as f:
+                            f.write(header)
+                            f.write(b"".join((sep + r for r in group)))
+                            if not group[-1].rstrip().endswith(b"</table>"):
+                                f.write(b"\n</table>")
+                        files.append(tmp)
+
+            results = Parallel(n_jobs=-1)(delayed(callback)(tmp.name) for tmp in files)
+
+            if isinstance(results[0], dict):
+                result = {}
+                for result_ in results:
+                    if handle_repeated_keys == "combine":
+                        for key, val in result_.items():
+                            if not isinstance(val, list):
+                                val = [val]
+                            result.setdefault(key, []).extend(val)
+                    elif handle_repeated_keys == "keep":
+                        for key, val in result_.items():
+                            result.setdefault(key, val)
+                    elif handle_repeated_keys == "overwrite":
+                        result.update(result_)
+                    else:
+                        if set(result_) & set(result):
+                            raise KeyError("Duplicate keys returned")
+                        result.update(result_)
+                return result
+            elif isinstance(results[0], list):
+                result = []
+                for result_ in results:
+                    result.extend(result_)
+                return result
+
+            return results
+        finally:
+            for tmp in files:
+                tmp.close()
+                os.remove(tmp.name)
+            shutil.rmtree(tmpdir)
 
     def from_json(self, chunk_size=2097152):
         """Reads data from JSON
@@ -238,6 +361,15 @@ class EMuReader:
             # Remove the partial JSON file if write is interrupted
             os.remove(path)
             raise IOError("Conversion to JSON failed") from exc
+
+    def counts(self):
+        """Counts the number of records in each file"""
+        counts = {}
+        for filelike in self.files:
+            with open(filelike.path, mode="r", encoding="utf8") as f:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as m:
+                    counts[filelike.path] = len(re.findall(rb"\n  <tuple>", m.read()))
+        return counts[list(counts)[0]] if len(counts) == 1 else counts
 
     def report_progress(self, by="time", at=5):
         """Prints progress notification messages when reading a file
