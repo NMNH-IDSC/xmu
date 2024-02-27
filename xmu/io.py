@@ -16,7 +16,7 @@ import zipfile
 from joblib import Parallel, delayed
 from lxml import etree
 
-from .utils import flatten, is_nesttab, is_ref, is_ref_tab, is_tab
+from .utils import flatten, is_nesttab, is_ref, is_ref_tab, is_tab, strip_tab
 
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ class EMuReader:
         self.json_path = json_path
         self.files = []
         self.module = None
+        self._fields = None
         self._get_files()
         self._load_schema()
 
@@ -76,6 +77,12 @@ class EMuReader:
         if isinstance(counts, int):
             return counts
         raise NotImplementedError("Not implemented when multiple source files provided")
+
+    @property
+    def fields(self):
+        if self._fields is None:
+            self._fields = self._parse_file_schema()
+        return self._fields
 
     def from_file(self):
         """Reads data from file, using JSON if possible
@@ -371,6 +378,21 @@ class EMuReader:
                     counts[filelike.path] = len(re.findall(rb"\n  <tuple>", m.read()))
         return counts[list(counts)[0]] if len(counts) == 1 else counts
 
+    def verify_group(self, path, module=None):
+        """Verifies that all fields in a group are present in the export
+
+        Raises
+        ------
+        ValueError
+            if one or more fields missing
+        """
+        if module is None:
+            module = self.module
+        group = tuple(self.schema.get_field_info(module, path).get("GroupFields", []))
+        missing = set(group) - set(self.fields)
+        if missing:
+            raise ValueError(f"Group including '{path}' is missing fields: {missing}")
+
     def report_progress(self, by="time", at=5):
         """Prints progress notification messages when reading a file
 
@@ -524,6 +546,49 @@ class EMuReader:
             except (AttributeError, ValueError):
                 schema = None
         return self.schema
+
+    def _parse_file_schema(self):
+        """Parses top-level fields from header of EMu XML file
+
+        Returns
+        -------
+        list
+            list of top-level fields
+        """
+        fields = {}
+        for filelike in self.files:
+            with open(filelike.path, "r", encoding="utf-8") as f:
+                lines = []
+                for line in f:
+                    lines.append(line)
+                    if line.startswith("?>"):
+                        break
+                content = "".join(lines)
+
+            tables = []
+            for line in (
+                re.search(r"<?schema\s+(.*?)\?>", content, flags=re.DOTALL)
+                .group(1)
+                .splitlines()
+            ):
+                line = line.strip()
+                try:
+                    dtype, field = [s.strip() for s in line.rsplit(" ", 1)]
+                except ValueError:
+                    dtype = None
+                    tables.pop()
+                else:
+                    if dtype == "table":
+                        tables.append(field)
+                    else:
+                        segments = tables[1:] + [field]
+                        segments = [
+                            s
+                            for i, s in enumerate(segments)
+                            if strip_tab(s) not in {strip_tab(s) for s in segments[:i]}
+                        ]
+                        fields[segments[0]] = 1
+        return tuple(fields)
 
 
 class FileLike:

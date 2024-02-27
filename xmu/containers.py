@@ -960,11 +960,25 @@ class EMuGrid(MutableSequence):
             raise ValueError(f"Inconsistent modifier within grid: {cols}")
         return cols
 
+    def verify(self):
+        """Checks if any fields in the grid are missing from the record"""
+        missing = set(self.group) - set(self.columns)
+        if missing:
+            raise ValueError(
+                f"Grid including '{self.columns[0]}' is missing fields: {missing}."
+                f" Verify that all grid fields are present in import, then run"
+                f" grid.add_columns().pad() to complete the grid."
+            )
+
     def insert(self, index, value):
         # Required by MutableSequence but does not make sense to implement
         raise NotImplementedError(
             "Cannot insert into an EMuGrid. Use the main EMuRecord object instead."
         )
+
+    def items(self):
+        for col in self.columns:
+            yield col, self._rec[col]
 
     def add_columns(self, cols=None, fill_value=None):
         """Adds missing columns to the grid

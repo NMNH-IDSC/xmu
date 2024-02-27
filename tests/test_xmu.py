@@ -317,6 +317,43 @@ def config_file(output_dir, schema_file):
 @pytest.fixture
 def xml_file(output_dir):
     xml = """<?xml version="1.0" encoding="UTF-8" ?>
+<?schema
+  table           emain
+    integer         irn
+    text short      EmuText
+    integer         EmuInteger
+    float           EmuFloat
+    latitude        EmuLatitude
+    longitude       EmuLongitude
+    table           EmuRef
+      integer         irn
+      text short      EmuRefOnly
+    end
+    table           EmuDate0
+      date            EmuDate
+    end
+    table           EmuTime0
+      time            EmuTime
+    end
+    table           EmuTable_tab
+      text short      EmuTable
+    end
+    table           EmuTableUngrouped_tab
+      text short      EmuTableUngrouped
+    end
+    table           EmuRef_tab
+      table           EmuRef
+        integer         irn
+        text short      EmuRefOnly
+      end
+    end
+    table           EmuNestedTable_nesttab
+      table           EmuNestedTable_nesttab_inner
+        text short      EmuNestedTable
+      end
+    end
+  end
+?>
 <table name="emain">
 
   <!-- Row 1 -->
@@ -725,6 +762,17 @@ def test_grid_from_ungrouped(rec):
         rec.grid("EmuText")
 
 
+def test_grid_missing_fields(xml_file):
+    reader = EMuReader(xml_file)
+    reader.verify_group("EmuTable_tab")
+    for rec in reader:
+        rec = EMuRecord(rec, module=reader.module)
+        grid = rec.grid("EmuTable_tab")
+        del rec["EmuTable_tab"]
+        with pytest.raises(ValueError, match="Grid including"):
+            grid.verify()
+
+
 @pytest.mark.parametrize(
     "key,val,expected",
     [
@@ -750,8 +798,25 @@ def test_lookup(key, val, expected):
     assert etree.tostring(rec.to_xml()).decode("utf-8") == expected
 
 
-def test_rec_from_dir(output_dir, expected_rec):
+def test_parse_file_schema(output_dir):
     reader = EMuReader(output_dir)
+    assert reader.fields == (
+        "irn",
+        "EmuText",
+        "EmuInteger",
+        "EmuFloat",
+        "EmuLatitude",
+        "EmuLongitude",
+        "EmuRef",
+        "EmuDate0",
+        "EmuTime0",
+        "EmuTable_tab",
+        "EmuTableUngrouped_tab",
+        "EmuRef_tab",
+        "EmuNestedTable_nesttab",
+    )
+
+
     for rec in reader:
         assert rec == expected_rec
 
