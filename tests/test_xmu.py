@@ -1221,6 +1221,7 @@ def test_dtype_date_invalid_directive():
         date.strftime("%Y-%m-%d")
 
 
+@pytest.mark.skip(reason="attribute modification no longer permitted")
 @pytest.mark.parametrize("attr", ["min_value", "max_value"])
 def test_dtype_date_bad_kind(attr):
     date = EMuDate("1970-01-01")
@@ -1261,6 +1262,7 @@ def test_dtype_date_invalid(date_tuple, match):
         EMuDate(date_tuple)
 
 
+@pytest.mark.skip(reason="attribute modification no longer permitted")
 def test_dtype_date_setters():
     date = EMuDate("1970-01-01")
     date.year = 1971
@@ -1299,8 +1301,23 @@ def test_dtype_time(time_string):
         ("1.", None, "1"),
     ],
 )
-def test_dtype_float(val, fmt, expected):
+def test_dtype_float_str(val, fmt, expected):
     assert str(EMuFloat(val, fmt)) == expected
+
+
+@pytest.mark.parametrize(
+    "cl,val,expected",
+    [
+        (EMuFloat, "1.1", "EMuFloat('1.1')"),
+        (EMuFloat, "1.10", "EMuFloat('1.10')"),
+        (EMuFloat, "1.100", "EMuFloat('1.100')"),
+        (EMuLatitude, "45°30'15''N", "EMuLatitude('45 30 15 N')"),
+        (EMuLongitude, "45.5042", "EMuLongitude('45.5042')"),
+        (EMuLongitude, "-45.5042", "EMuLongitude('-45.5042')"),
+    ],
+)
+def test_dtype_coord_repr(cl, val, expected):
+    assert repr(cl(val)) == expected
 
 
 def test_dtype_float_format():
@@ -1362,6 +1379,33 @@ def test_dtype_float_type_conversions():
     assert str(val) == str(EMuFloat(0.1200, "{:.4f}"))
     assert int(val) == 0
     assert float(val) == 0.12
+
+
+def test_dtype_float_values():
+    val = EMuFloat("0.1200")
+    assert val.value == 0.12
+    assert val.min_value == 0.12
+    assert val.max_value == 0.12
+    assert val.comp == 0.12
+    assert val.min_comp == 0.12
+    assert val.max_comp == 0.12
+
+
+def test_dtype_float_mutability():
+    val = EMuFloat("1.0")
+    val_id = id(val)
+    val += 1
+    assert val_id != id(val)
+
+
+def test_dtype_setattr():
+    with pytest.raises(AttributeError, match="Cannot modify existing attribute"):
+        EMuFloat("0.1200").value = 0.1
+
+
+def test_dtype_delattr():
+    with pytest.raises(AttributeError, match="Cannot delete attribute"):
+        del EMuFloat("0.1200").value
 
 
 @pytest.mark.skip(reason="no longer the expected behavior")

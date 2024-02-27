@@ -133,9 +133,6 @@ class EMuType:
     def __floordiv__(self, other):
         return self._math_op(other, "__floordiv__")
 
-    def __div__(self, other):
-        return self._math_op(other, "__div__")
-
     def __truediv__(self, other):
         return self._math_op(other, "__truediv__")
 
@@ -150,51 +147,42 @@ class EMuType:
 
     def __iadd__(self, other):
         result = self + other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
 
     def __isub__(self, other):
         result = self - other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
 
     def __imul__(self, other):
         result = self * other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
 
     def __ifloordiv__(self, other):
         result = self // other
-        self.value = result.value
-        self.format = result.format
-        return self
-
-    def __idiv__(self, other):
-        result = self / other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
 
     def __itruediv__(self, other):
         result = self / other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
 
     def __imod__(self, other):
         result = self % other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
 
     def __ipow__(self, other):
         result = self**other
-        self.value = result.value
-        self.format = result.format
-        return self
+        return self.__class__(result.value, result.format)
+
+    def __setattr__(self, attr, val):
+        try:
+            getattr(self, attr)
+        except AttributeError:
+            super().__setattr__(attr, val)
+        else:
+            raise AttributeError("Cannot modify existing attribute")
+
+    def __delattr__(self, attr):
+        raise AttributeError("Cannot delete attribute")
 
     @property
     def min_value(self):
@@ -242,10 +230,6 @@ class EMuType:
             other = self.__class__(other)
         return other
 
-    def copy(self):
-        """Creates a copy of the current object"""
-        return self.__class__(self.verbatim)
-
     def is_range(self):
         """Checks if class represents a range"""
         return self.min_comp != self.max_comp
@@ -291,6 +275,12 @@ class EMuType:
             # class, for example, subtracting one date from another
             return val
 
+    def _set_default_attr(self, attr, val=None):
+        try:
+            getattr(self, attr)
+        except AttributeError:
+            setattr(self, attr, val)
+
 
 class EMuFloat(EMuType):
     """Wraps floats read from strings to preserve precision
@@ -321,7 +311,7 @@ class EMuFloat(EMuType):
         val : str or float
             the number to wrap
         fmt : str
-            a Python formatting string. Must be probided if val is a float,
+            a Python formatting string. Recommended if val is a float,
             otherwise it will be determined from val.
         """
 
@@ -431,11 +421,8 @@ class EMuCoord(EMuFloat):
             formatting string used to convert a float back to a string
         """
 
-        self.verbatim = val
         self.always_compare_range = False
 
-        self.minutes = None
-        self.seconds = None
         if isinstance(val, str):
             self.verbatim = val.strip()
             parts = re.findall(r"(\d+(?:\.\d+)?)", self.verbatim)
@@ -450,9 +437,13 @@ class EMuCoord(EMuFloat):
             self.verbatim = val.verbatim
             for attr in ("degrees", "minutes", "seconds"):
                 if getattr(val, attr) is not None:
-                    setattr(self, attr, getattr(val, attr).copy())
+                    setattr(self, attr, getattr(val, attr))
         else:
+            self.verbatim = val
             self.degrees = EMuFloat(abs(val), fmt=fmt)
+
+        self._set_default_attr("minutes", None)
+        self._set_default_attr("seconds", None)
 
         self._sign = EMuFloat(self._get_sign(), fmt="{:.0f}")
 
@@ -502,10 +493,6 @@ class EMuCoord(EMuFloat):
         except ValueError:
             return "dms"
         return "decimal"
-
-    @property
-    def format(self):
-        return "{}" if self.kind == "dms" else self.degrees.format
 
     def to_dms(self, unc_m=None):
         """Expresses coordinate as degrees-minutes-seconds
@@ -902,10 +889,8 @@ class EMuDate(EMuType):
     def emu_str(self):
         """Returns a string representation of the date suitable for EMu"""
         if self.year < 0:
-            self.year *= -1
-            val = f"{self} BC"
-            self.year *= -1
-            return val
+            year = str(self.year).zfill(5)
+            return f"{self} BC".replace(year, year.lstrip("-"))
         if 0 <= self.year < 100:
             return f"{self} AD"
         return str(self)
@@ -1136,14 +1121,14 @@ class EMuTime(EMuType):
 
         if isinstance(val, EMuTime):
             self.value = val.value
-            self.format = val.format
-            val = val.strftime(self.format)
+            fmt = val.format
+            val = val.strftime(fmt)
             fmts.clear()
 
         elif isinstance(val, time):
             self.value = val
-            self.format = fmts[0]
-            val = val.strftime(self.format)
+            fmt = fmts[0]
+            val = val.strftime(fmt)
             fmts.clear()
 
         for fmt in fmts:
@@ -1156,7 +1141,6 @@ class EMuTime(EMuType):
                     parsed.microsecond,
                     parsed.tzinfo,
                 )
-                self.format = fmt
                 break
             except (TypeError, ValueError):
                 pass
@@ -1170,7 +1154,7 @@ class EMuTime(EMuType):
             raise ValueError(f"Parsing changed value ('{val}' became '{self}')")
 
         # Enforce a consistent output format
-        self.format = "%H:%M:%S" if "%S" in self.format else "%H:%M"
+        self.format = "%H:%M:%S" if "%S" in fmt else "%H:%M"
 
     def __str__(self):
         return self.value.strftime(self.format)
