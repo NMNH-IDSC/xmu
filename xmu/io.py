@@ -53,7 +53,7 @@ class EMuReader:
     schema = None
 
     def __init__(self, path, json_path=None):
-        self.path = path
+        self.path = str(path)
         self._rec_class = dict
         self.json_path = json_path
         self.files = []

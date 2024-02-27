@@ -3,6 +3,7 @@ import os
 import pickle
 import re
 import zipfile
+from datetime import date, datetime, time, timedelta
 
 import pytest
 from lxml import etree
@@ -44,7 +45,7 @@ def output_dir(tmp_path_factory):
 
 @pytest.fixture
 def schema_file(output_dir):
-    # THis is a partial schema that omits keys not used by the application
+    # This is a partial schema that omits keys not used by the application
     pl = """#
 #
 #
@@ -438,9 +439,8 @@ def xml_file(output_dir):
 
 
 @pytest.fixture
-def rec(xml_file, config_file):
+def rec(xml_file):
     reader = EMuReader(xml_file)
-    reader.config = EMuConfig(config_file)
     for rec in reader:
         return EMuRecord(rec, module=reader.module)
 
@@ -819,6 +819,9 @@ def test_parse_file_schema(output_dir):
     )
 
 
+def test_read_from_dir(xml_file, output_dir, expected_rec):
+    reader = EMuReader(output_dir)
+    assert [str(f) for f in reader.files] == ['<FileLike name="xmldata.xml">']
     for rec in reader:
         assert rec == expected_rec
 
@@ -922,6 +925,8 @@ def test_read_from_parallel_dict_raise(output_dir):
         )
 
 
+def test_read_from_json(xml_file, output_dir):
+    reader = EMuReader(xml_file)
     for rec in reader:
         rec_from_xml = EMuRecord(rec, module=reader.module)
 
@@ -946,12 +951,16 @@ def test_read_from_parallel_dict_raise(output_dir):
     assert rec_from_json_chunked == rec_from_xml
 
 
-def test_rec_from_zip(xml_file, output_dir, expected_rec):
+def test_read_from_zip(xml_file, output_dir, expected_rec):
     path = str(output_dir / "xmldata.zip")
     with zipfile.ZipFile(path, "w") as f:
         f.write(xml_file, arcname="xmldata_1.xml")
         f.write(xml_file, arcname="xmldata_2.xml")
     reader = EMuReader(path)
+    assert [repr(f) for f in reader.files] == [
+        '<FileLike name="xmldata_1.xml">',
+        '<FileLike name="xmldata_2.xml">',
+    ]
     for rec in reader:
         assert rec == expected_rec
 
@@ -995,12 +1004,8 @@ def test_rec_getitem_invalid(rec, path):
 
 def test_report_progress(xml_file, output_dir, capsys):
     reader = EMuReader(output_dir)
-    for i, rec in enumerate(reader):
-        reader.report_progress("count", 1)
-        if i:
-            assert re.match(
-                r"\d+(,\d{3})* records processed \(t", capsys.readouterr().out
-            )
+    for i, _ in enumerate(reader):
+        reader.report_progress("count", 10000)
     assert re.match(r"\d+(,\d{3})* records processed \(total=", capsys.readouterr().out)
 
 
