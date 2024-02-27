@@ -1,5 +1,6 @@
-from datetime import date, datetime, time, timedelta
+import json
 import os
+import pickle
 import re
 import zipfile
 
@@ -10,6 +11,7 @@ from xmu import (
     EMuColumn,
     EMuConfig,
     EMuDate,
+    EMuEncoder,
     EMuFloat,
     EMuLatitude,
     EMuLongitude,
@@ -1626,3 +1628,46 @@ def test_mod_on_atom():
 def test_mod_invalid():
     with pytest.raises(ValueError, match=r"Invalid modifier"):
         get_mod("AtomField(*)")
+
+
+def test_pickle(rec):
+    assert rec == pickle.loads(pickle.dumps(rec))
+
+
+def test_json(rec):
+    assert rec == EMuRecord(rec.json(), module=rec.module)
+
+
+def test_encoder(rec):
+    dct_from_json = json.loads(json.dumps(rec, cls=EMuEncoder))
+    assert rec == EMuRecord(dct_from_json, module=rec.module)
+
+
+@pytest.mark.parametrize("kind", ["class", "copy"])
+def test_mutability(kind, rec):
+    if kind == "class":
+        rec_copy = EMuRecord(rec, module=rec.module)
+    else:
+        rec_copy = rec.copy()
+
+    for key, val in rec.items():
+        assert val == rec_copy[key]
+
+    rec["EmuText"] += "s"
+    assert rec["EmuText"] == "Texts"
+    assert rec_copy["EmuText"] == "Text"
+
+    rec["EmuFloat"] += 1
+    assert rec["EmuFloat"] == 2
+    assert rec_copy["EmuFloat"] == 1
+
+    rec["EmuRef"]["irn"] = 1000001
+    assert rec_copy["EmuRef"]["irn"] == 1000000
+
+    del rec["EmuDate0"][0]
+    assert rec["EmuDate0"][0] == EMuDate("Jan 1970")
+    assert rec_copy["EmuDate0"][0] == EMuDate("1970-01-01")
+
+    rec["EmuNestedTable_nesttab"][0].append("Text")
+    rec["EmuNestedTable_nesttab"][0][0] == "Text"
+    rec["EmuNestedTable_nesttab"][0] == []

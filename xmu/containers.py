@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import pickle
 import re
 from collections.abc import MutableMapping, MutableSequence
 from ctypes import c_uint64
@@ -671,6 +672,10 @@ class EMuColumn(list):
     def extend(self, vals):
         super().extend([_coerce_values(self, v) for v in vals])
 
+    def copy(self):
+        """Overrides the native list.copy method to return an object of this class"""
+        return pickle.loads(pickle.dumps(self))
+
     def to_xml(self, root=None, kind=None, row_ids=None):
         """Converts column to XML formatted for EMu
 
@@ -1097,6 +1102,10 @@ class EMuRecord(dict):
 
         super().__init__()
         if rec:
+            if isinstance(rec, str):
+                rec = json.loads(rec)
+            elif isinstance(rec, self.__class__):
+                rec = rec.copy()
             self.update(rec)
 
     def __str__(self):
@@ -1165,7 +1174,24 @@ class EMuRecord(dict):
 
     def copy(self):
         """Overrides the native dict.copy method to return an object of this class"""
-        return self.__class__(deepcopy(dict(self)), module=_get_module(self))
+        return pickle.loads(pickle.dumps(self))
+
+    def json(self, **kwargs):
+        """Converts record to JSON
+
+        Parameters
+        ----------
+        kwargs :
+            any kwarg accepted by json.dumps
+
+        Returns
+        -------
+        str
+            record as JSON string
+        """
+        kwargs.setdefault("cls", EMuEncoder)
+        kwargs.setdefault("ensure_ascii", False)
+        return json.dumps(dict(self), **kwargs)
 
     def grid(self, field, **kwargs):
         """Returns the EMuGrid object containing the given field
@@ -1290,8 +1316,27 @@ class EMuRecord(dict):
         return root
 
 
+class EMuEncoder(json.JSONEncoder):
+    """Encodes objects using EMuRecord and EMuColumn"""
+
+    def default(self, obj):
+        if isinstance(obj, dict):
+            return dict(obj)
+        elif isinstance(obj, list):
+            return list(obj)
+        return str(obj)
+
+
 def _coerce_values(parent, child, key=None):
     """Coerces child containers and values to specific classes"""
+
+    # Pickled objects are missing the instance attributes required to
+    # use this function, but since these objects have already been
+    # coerced, they can be returned as is.
+    try:
+        parent.module
+    except AttributeError:
+        return child
 
     if isinstance(parent, dict):
         dict_class = parent.dict_class
