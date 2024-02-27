@@ -294,7 +294,7 @@ class EMuSchema(dict):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
-    #: 
+    #:
     #: :meta hide-value:
     config = None
 
@@ -627,13 +627,13 @@ class EMuColumn(list):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
-    #: 
+    #:
     #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
-    #: 
+    #:
     #: :meta hide-value:
     schema = None
 
@@ -778,13 +778,13 @@ class EMuRow(MutableMapping):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
-    #: 
+    #:
     #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
-    #: 
+    #:
     #: :meta hide-value:
     schema = None
 
@@ -881,13 +881,13 @@ class EMuGrid(MutableSequence):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
-    #: 
+    #:
     #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
-    #: 
+    #:
     #: :meta hide-value:
     schema = None
 
@@ -1099,13 +1099,13 @@ class EMuRecord(dict):
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
-    #: 
+    #:
     #: :meta hide-value:
     config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
-    #: 
+    #:
     #: :meta hide-value:
     schema = None
 

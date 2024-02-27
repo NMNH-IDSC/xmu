@@ -7,6 +7,22 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b7
+-----
+
+- Transferred repository to NMNH-IDSC
+- Added `from_xml_parallel()` method to EMuReader to allow parallel
+  reading of XML files (experimental)
+- Added support for pickle and json to EMuRecord objects
+- Added check for missing grid fields to the EMuReader and EMuGrid
+  objects. These methods are intended to allow users to catch when a
+  required grid field is missing from an export.
+- Changed custom data types to be essentially immutable. Previously
+  attributes could be directly modified.
+- Changed loading of schema and config files such that these files are
+  explicitly loaded when the module is imported. Previously they were
+  lazy loaded when an associated attribute was accessed.
+
 0.1b6
 -----
 

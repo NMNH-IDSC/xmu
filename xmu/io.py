@@ -46,13 +46,13 @@ class EMuReader:
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
     #: when an EMuConfig object is created.
-    #: 
+    #:
     #: :meta hide-value:
-    config = None 
+    config = None
 
     #: EMuSchema : info about a specific EMu configuration. Set automatically
     #: when an EMuSchema object is created.
-    #: 
+    #:
     #: :meta hide-value:
     schema = None
 

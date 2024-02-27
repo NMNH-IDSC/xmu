@@ -64,7 +64,7 @@ write_xml(records, "update.xml")
 ```
 
 You can use the experimental
-:py:meth:`~xmu.io.EMuReader.from_xml_parallel` method to read large XML
+:py:meth:`xmu.io.EMuReader.from_xml_parallel` method to read large XML
 files more quickly. For example, to create a dict mapping IRNs to
 records:
 
