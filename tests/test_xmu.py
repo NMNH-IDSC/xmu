@@ -34,6 +34,8 @@ from xmu import (
 )
 from xmu.types import ExtendedDate
 
+os.chdir("tests")
+
 
 @pytest.fixture(scope="session")
 def output_dir(tmp_path_factory):
@@ -298,7 +300,7 @@ use utf8;
 
 
 @pytest.fixture
-def config_file(output_dir, schema_file):
+def config_file(schema_file):
     config = EMuConfig(".")
     config["schema_path"] = schema_file
     config["groups"]["emain"] = {
@@ -310,8 +312,8 @@ def config_file(output_dir, schema_file):
         ]
     }
     config["lookup_no_autopopulate"] = ["emain.EmuLookupParent", "emain.EmuLookupChild"]
-    config.save_rcfile(output_dir, overwrite=True)
-    return str(output_dir / ".xmurc")
+    config.save_rcfile(".", overwrite=True)
+    return ".xmurc"
 
 
 @pytest.fixture
@@ -1051,6 +1053,7 @@ def test_rec_not_dict(rec):
         rec["EmuRef"] = []
 
 
+@pytest.mark.skip(reason="schema is no longer lazy loaded")
 def test_rec_lazy_load_schema():
     EMuRecord.schema = None
     EMuRecord(module="ecatalogue")

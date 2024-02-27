@@ -171,6 +171,7 @@ class EMuConfig(MutableMapping):
                 with open(path, encoding="utf-8") as f:
                     self.update(yaml.safe_load(f))
                 self.path = path
+                break
             except FileNotFoundError:
                 pass
 
@@ -1098,17 +1099,6 @@ class EMuRecord(dict):
         self.dict_class = dict_class if dict_class else DEFAULT_RECORD
         self.list_class = list_class if list_class else DEFAULT_COLUMN
 
-        # Load a config file from one of the default locations if empty
-        if self.config is None:
-            EMuConfig()
-
-        # Load schema specified in the config file if empty
-        if self.schema is None:
-            try:
-                EMuSchema(self.config["schema_path"])
-            except (FileNotFoundError, TypeError):
-                pass
-
         if self.schema and not self.module:
             raise ValueError(
                 f"Must provide module when schema is used (one of {self.schema.modules})"
@@ -1555,3 +1545,9 @@ def _split_path(path):
 
 DEFAULT_RECORD = EMuRecord
 DEFAULT_COLUMN = EMuColumn
+
+# Load config and schema, if provided
+try:
+    EMuSchema()
+except (FileNotFoundError, TypeError):
+    pass
