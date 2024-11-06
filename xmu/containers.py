@@ -336,7 +336,7 @@ class EMuSchema(dict):
         if self.config is not None:
             for module, groups in self.config["groups"].items():
                 for fields in groups.values():
-                    self.define_group(module, fields, overwrite=True)
+                    self.define_group(module, fields)
 
     def __getitem__(self, path):
         path = _split_path(path)
@@ -399,7 +399,12 @@ class EMuSchema(dict):
             EMuRecord.schema = self
             for module, data in self["Schema"].items():
                 for fields in data.get("groups", {}).values():
-                    self.define_group(module, fields)
+                    try:
+                        self.define_group(module, fields)
+                    except KeyError as exc:
+                        warn(
+                            f"The schema file includes an invalid group: {module}, {fields} (exc={exc})"
+                        )
 
             self.to_json(f"{path}.json")
 
@@ -458,7 +463,7 @@ class EMuSchema(dict):
             for field, info in cols.items():
                 yield module, field, info
 
-    def define_group(self, module, fields, overwrite=False):
+    def define_group(self, module, fields):
         """Maps a group definition to each member field
 
         Groups are read from a schema if possible but can also be defined manually.
@@ -472,20 +477,31 @@ class EMuSchema(dict):
         overwrite : bool
             whether to overwrite an existing group
         """
+        fields_ = {}
         for field in fields:
-            info = self.get_field_info(module, field)
-
-            # Group definitions in the schema point to the client field that
-            # manages a reference (e.g., ModField_tab instead of ModFieldRef_tab).
-            # Use the reference table instead.
             try:
-                fields[fields.index(field)] = info["RefLink"]
-                info = self.get_field_info(module, info["RefLink"])
-            except KeyError:
-                pass
+                info = self.get_field_info(module, field)
+            except KeyError as exc:
+                if "is a view of the data in" not in str(exc):
+                    raise
+                # Map views to the attachment field
+                field = str(exc).split(" ")[-1].strip("'")
+            else:
+                field = info.get("RefLink", field)
+            fields_[field] = 1
 
-            if info.get("GroupFields") and not overwrite:
-                warn(f"{module}.{field} is assigned to multiple groups")
+        fields = list(fields_)
+        for field in fields[:]:
+            # Combine groups that share one or more fields
+            info = self.get_field_info(module, field)
+            fields_ = info.get("GroupFields", [])
+            if fields_:
+                a = set(fields)
+                b = set(fields_)
+                if not (a.issubset(b) or b.issubset(a)):
+                    warn(f"Combined groups:\n- {fields}\n- {fields_}")
+                fields.extend([f for f in fields_ if f not in fields])
+                fields_.extend([f for f in fields if f not in fields_])
             else:
                 info["GroupFields"] = fields
 
@@ -1524,14 +1540,29 @@ def _get_field_info(module, path, visible_only=None):
         ]
         modules.append(obj.get("RefTable", modules[-1]))
 
-    # ItemName *appears* to be populated only for fields that appear in the client
+    # Views are data from a single attachment that appear in multiple fields in
+    # the linking module. They should not be read or written to.
+    try:
+        is_view = obj["RefLink"] != obj["ColumnName"]
+    except KeyError:
+        pass
+    else:
+        if is_view:
+            # NOTE: The content of this error message is used in define_group()
+            raise KeyError(
+                f"{module}.{seg} is a view of the data in {obj['RefLink']}. Access"
+                f" that data through the main attachment field instead."
+            )
+
+    # The schema may include fields that are not visible in the client. ItemName
+    # *appears* to be populated only for fields that actually appear in the client.
     module = modules[-2]
     if (
         visible_only
         and not obj.get("ItemName")
         and not ".".join([module] + list(segments)) in EMuRecord.config["make_visible"]
     ):
-        raise KeyError(f"{module}.{seg} is valid but not not visible")
+        raise KeyError(f"{module}.{seg} appears in the schema but is not visible")
 
     return obj
 

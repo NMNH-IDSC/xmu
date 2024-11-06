@@ -64,28 +64,28 @@ use utf8;
 		table => 'emain',
 		columns =>
 		{
-            'EmuClientTable_tab' =>
+            'EmuClientTable1Ref_tab' =>
 			{
-				ColumnName => 'EmuClientTable_tab',
+				ColumnName => 'EmuClientTable1Ref_tab',
 				DataType => 'Text',
-                RefLink => 'EmuClientTableRef_tab'
+                RefLink => 'EmuClientTable1Ref_tab'
 
-				ItemName => 'Client Table',
+				ItemName => 'EmuClientTable1Ref',
 			},
-            'EmuClientTableRef_tab' =>
+            'EmuClientTable2Ref_tab' =>
 			{
-				ColumnName => 'EmuRef_tab',
+				ColumnName => 'EmuClientTable2Ref_tab',
 				DataType => 'Integer',
-                RefLink => 'eref'
+                RefLink => 'EmuClientTable2Ref_tab'
 
-				ItemName => 'Client Reference Table',
+				ItemName => 'EmuClientTable2Ref',
 			},
 			'EmuDate0' =>
 			{
 				ColumnName => 'EmuDate0',
 				DataType => 'Date',
 
-                ItemName => 'Date',
+                ItemName => 'EmuDate0',
 				ItemFields =>
 				[
 					[ 8, 2, 2 ],
@@ -98,7 +98,7 @@ use utf8;
 				ColumnName => 'EmuEmpty',
 				DataType => 'Text',
 
-                ItemName => 'Empty',
+                ItemName => 'EmuEmpty',
 				ItemCount => 1,
 				ItemFields => [ 15 ],
 			},
@@ -107,62 +107,62 @@ use utf8;
 				ColumnName => 'EmuInteger',
 				DataType => 'Integer',
 
-                ItemName => 'Integer',
+                ItemName => 'EmuInteger',
 			},
 			'EmuFloat' =>
 			{
 				ColumnName => 'EmuFloat',
 				DataType => 'Float',
 
-                ItemName => 'Float',
+                ItemName => 'EmuFloat',
 			},
             'EmuLatitude' =>
 			{
 				ColumnName => 'EmuLatitude',
 				DataType => 'Latitude',
 
-				ItemName => 'Latitude',
+				ItemName => 'EmuLatitude',
 			},
             'EmuLongitude' =>
 			{
 				ColumnName => 'EmuLongitude',
 				DataType => 'Longitude',
 
-				ItemName => 'Longitude',
+				ItemName => 'EmuLongitude',
 			},
             'EmuLookupParent' =>
 			{
-				ColumnName => 'EmuText',
+				ColumnName => 'EmuLookupParent',
 				DataType => 'Text',
                 LookupName => 'Lookup',
 				LookupParent => 'SecLookupRoot',
 
-				ItemName => 'Lookup Parent',
+				ItemName => 'EmuLookupParent',
 			},
             'EmuLookupChild' =>
 			{
-				ColumnName => 'EmuText',
+				ColumnName => 'EmuLookupChild',
 				DataType => 'Text',
                 LookupName => 'Lookup',
 				LookupParent => 'EmuLookupParent',
 
-				ItemName => 'Lookup Child',
+				ItemName => 'EmuLookupChild',
 			},
             'EmuLookupGrandchild' =>
 			{
-				ColumnName => 'EmuText',
+				ColumnName => 'EmuLookupGrandchild',
 				DataType => 'Text',
                 LookupName => 'Lookup',
 				LookupParent => 'EmuLookupChild',
 
-				ItemName => 'Lookup Grandchild',
+				ItemName => 'EmuLookupGrandchild',
 			},
             'EmuNestedTable_nesttab' =>
 			{
 				ColumnName => 'EmuNestedTable_nesttab',
 				DataType => 'Text',
 
-                ItemName => 'Nested Table',
+                ItemName => 'EmuNestedTable',
 			},
             'EmuNotVisible' =>
 			{
@@ -171,11 +171,11 @@ use utf8;
 			},
             'EmuRef' =>
 			{
-				ColumnName => 'EmuEmpty',
+				ColumnName => 'EmuRef',
 				DataType => 'Integer',
                 RefTable => 'eref',
 
-                ItemName => 'Reference',
+                ItemName => 'EmuRef',
 				ItemFields =>
 				[
 					  10,   10,   10,   10,   10,
@@ -183,13 +183,22 @@ use utf8;
                       10,
 				],
 			},
-            'EmuRef_nesttab' =>
+            'EmuRefView_tab' =>
 			{
-				ColumnName => 'EmuRef_nesttab',
+				ColumnName => 'EmuRefView_tab',
+				DataType => 'Text',
+                RefColumn => 'EMuRefOnly'
+                RefLink => 'EmuRef_tab'
+
+				ItemName => 'EmuRefView',
+			},
+            'EmuNestedRef_nesttab' =>
+			{
+				ColumnName => 'EmuNestedRef_nesttab',
 				DataType => 'Integer',
                 RefTable => 'eref'
 
-				ItemName => 'Nested Reference Table',
+				ItemName => 'EmuNestedRef',
 			},
             'EmuRef_tab' =>
 			{
@@ -197,35 +206,35 @@ use utf8;
 				DataType => 'Integer',
                 RefTable => 'eref'
 
-				ItemName => 'Reference Table',
+				ItemName => 'EmuRef',
 			},
 			'EmuTable_tab' =>
 			{
 				ColumnName => 'EmuTable_tab',
 				DataType => 'Text',
 
-                ItemName => 'Table',
+                ItemName => 'EmuTable',
 			},
             'EmuTableUngrouped_tab' =>
 			{
 				ColumnName => 'EmuTable_tab',
 				DataType => 'Text',
 
-                ItemName => 'Table Ungrouped',
+                ItemName => 'EmuTableUngrouped',
 			},
             'EmuText' =>
 			{
 				ColumnName => 'EmuText',
 				DataType => 'Text',
 
-				ItemName => 'Text',
+				ItemName => 'EMuText',
 			},
             'EmuTime0' =>
 			{
 				ColumnName => 'EmuTime0',
 				DataType => 'Time',
 
-                ItemName => 'Time',
+                ItemName => 'EMuTime',
 				ItemFields =>
 				[
 					[ 8, 2, 2 ],
@@ -243,17 +252,34 @@ use utf8;
 		},
         groups =>
         {
-            'EmuGrid_grp' =>
+            'EmuGrid1_grp' =>
             [
                 'EmuDate0',
-                'EmuNestedTable_nesttab',
-                'EmuTable_tab',
+                'EmuNestedTable_nesttab'
+            ],
+            'EmuGrid2_grp' =>
+            [
+                'EmuDate0',
+                'EmuTable_tab'
+            ],
+            'EmuGrid3_grp' =>
+            [
+                'EmuDate0',
                 'EmuRef_tab'
             ],
             'EmuClientGrid_grp' =>
             [
-                'EmuClientTable_tab',
+                'EmuClientTable1Ref_tab',
             ],
+            'EmuInvalid_grp' =>
+            [
+                'EmuInvalid1_tab',
+                'EmuInvalid2_tab'
+            ],
+            'EmuMapToAttachment_grp' =>
+            [
+                'EmuRefView_tab'
+            ]
         },
 	},
 	eref =>
@@ -266,14 +292,14 @@ use utf8;
 				ColumnName => 'EmuRefOnly',
 				DataType => 'Text',
 
-				ItemName => 'Reference only',
+				ItemName => 'EmuRefOnly',
 			},
-            'EmuTableInRef_tab' =>
+            'EmuRefTable_tab' =>
 			{
-				ColumnName => 'EmuTableInRef',
+				ColumnName => 'EmuRefTable_tab',
 				DataType => 'Text',
 
-				ItemName => 'Table in Reference',
+				ItemName => 'EmuRefTable',
 			},
             'irn' =>
 			{
@@ -287,7 +313,7 @@ use utf8;
         {
             'EmuGridInReference_grp' =>
             [
-                'EmuTableInRef_tab'
+                'EmuRefTable_tab'
             ],
         },
 	},
@@ -487,7 +513,13 @@ def test_config(config_file, output_dir):
 
 
 def test_schema(schema_file):
-    schema_pl = EMuSchema(schema_file)
+    with pytest.warns(
+        UserWarning, match="(Combined groups|The schema file includes an invalid group)"
+    ) as record:
+        schema_pl = EMuSchema(schema_file)
+    assert record[0].message.args[0].startswith("Combined")
+    assert record[1].message.args[0].startswith("Combined")
+    assert record[2].message.args[0].startswith("The schema file")
     json_path = os.path.splitext(schema_file)[0] + ".json"
     schema_pl.to_json(json_path)
     assert schema_pl == EMuSchema(json_path)
@@ -515,7 +547,7 @@ def test_schema_get(schema_file):
     assert schema.get("Schema.emain.columns.EmuDate0") == {
         "ColumnName": "EmuDate0",
         "DataType": "Date",
-        "ItemName": "Date",
+        "ItemName": "EmuDate0",
         "ItemFields": [[8, 2, 2], [8, 2, 2], [8, 2, 2]],
         "GroupFields": [
             "EmuDate0",
@@ -533,8 +565,8 @@ def test_schema_iterfields(schema_file):
     for module, field, info in schema.iterfields():
         fields[(module, field)] = info
     assert list(fields) == [
-        ("emain", "EmuClientTable_tab"),
-        ("emain", "EmuClientTableRef_tab"),
+        ("emain", "EmuClientTable1Ref_tab"),
+        ("emain", "EmuClientTable2Ref_tab"),
         ("emain", "EmuDate0"),
         ("emain", "EmuEmpty"),
         ("emain", "EmuInteger"),
@@ -547,7 +579,8 @@ def test_schema_iterfields(schema_file):
         ("emain", "EmuNestedTable_nesttab"),
         ("emain", "EmuNotVisible"),
         ("emain", "EmuRef"),
-        ("emain", "EmuRef_nesttab"),
+        ("emain", "EmuRefView_tab"),
+        ("emain", "EmuNestedRef_nesttab"),
         ("emain", "EmuRef_tab"),
         ("emain", "EmuTable_tab"),
         ("emain", "EmuTableUngrouped_tab"),
@@ -555,7 +588,7 @@ def test_schema_iterfields(schema_file):
         ("emain", "EmuTime0"),
         ("emain", "irn"),
         ("eref", "EmuRefOnly"),
-        ("eref", "EmuTableInRef_tab"),
+        ("eref", "EmuRefTable_tab"),
         ("eref", "irn"),
     ]
 
@@ -570,7 +603,7 @@ def test_schema_getitem_bad_module(schema_file):
 
 
 def test_schema_getitem_not_visible(schema_file):
-    with pytest.raises(KeyError, match=r"emain.EmuNotVisible is valid but"):
+    with pytest.raises(KeyError, match=r"emain.EmuNotVisible appears in the schema"):
         EMuSchema(schema_file).get_field_info("emain", "EmuNotVisible")
 
 
@@ -639,8 +672,8 @@ def test_row_id():
 
 def test_row_in_reference(rec):
     rec = rec.copy()
-    row1 = EMuRow(rec, "EmuRef.EmuTableInRef_tab", 0)
-    row2 = EMuRow(rec["EmuRef"], "EmuTableInRef_tab", 0)
+    row1 = EMuRow(rec, "EmuRef.EmuRefTable_tab", 0)
+    row2 = EMuRow(rec["EmuRef"], "EmuRefTable_tab", 0)
     assert row1 == row2
 
 
@@ -681,12 +714,12 @@ def test_grid_by_str(grid):
 def test_empty_grid(rec):
     rec = rec.copy()
 
-    rec["EmuRef"] = {"EmuTableInRef_tab": []}
-    grid = rec.grid("EmuRef.EmuTableInRef_tab")
+    rec["EmuRef"] = {"EmuRefTable_tab": []}
+    grid = rec.grid("EmuRef.EmuRefTable_tab")
     assert len(grid) == 0
 
     rec["EmuRef"] = {}
-    grid = rec.grid("EmuRef.EmuTableInRef_tab")
+    grid = rec.grid("EmuRef.EmuRefTable_tab")
     assert len(grid) == 0
 
 
@@ -718,18 +751,18 @@ def test_grid_del_item(rec):
 
 def test_grid_from_client_table(rec):
     assert "GroupFields" in rec.schema.get_field_info(
-        rec.module, "EmuClientTableRef_tab"
+        rec.module, "EmuClientTable1Ref_tab"
     )
     assert "GroupFields" not in rec.schema.get_field_info(
-        rec.module, "EmuClientTable_tab"
+        rec.module, "EmuClientTable2Ref_tab"
     )
 
 
 def test_grid_in_reference(rec):
     rec = rec.copy()
-    rec["EmuRef"] = {"EmuTableInRef_tab": ["Text", "Text"]}
-    grid1 = rec.grid("EmuRef.EmuTableInRef_tab")
-    grid2 = rec["EmuRef"].grid("EmuTableInRef_tab")
+    rec["EmuRef"] = {"EmuRefTable_tab": ["Text", "Text"]}
+    grid1 = rec.grid("EmuRef.EmuRefTable_tab")
+    grid2 = rec["EmuRef"].grid("EmuRefTable_tab")
     assert grid1
     assert grid1 == grid2
 
