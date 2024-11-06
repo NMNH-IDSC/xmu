@@ -26,7 +26,7 @@ setup(
     description="Reads and writes XML for Axiell EMu",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="0.1b7",
+    version="0.1b8",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",

@@ -7,6 +7,16 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b8
+-----
+
+- Added `clean_xml()` function to removed restricted characters from XML
+- Added `sum` keyword for handling repeated keys in
+  `from_xml_parallel()`
+- Changed handling of reference field views and field groups, including
+  group definitions with overlapping fields
+- Removed date attribute setters from EMuDate
+
 0.1b7
 -----
 
