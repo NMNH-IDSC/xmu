@@ -4,6 +4,6 @@ lxml
 pyyaml
 
 # ReadTheDocs requirements
-m2r2
+myst_parser
 Sphinx
 sphinx_rtd_theme
