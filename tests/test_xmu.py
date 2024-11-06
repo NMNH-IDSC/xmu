@@ -2028,3 +2028,40 @@ def test_emuconfig_str(rec):
  'make_visible': [],
  'schema_path': None})"""
     )
+
+
+def test_emurecord_str(rec):
+    assert (
+        str(rec)
+        == """EMuRecord({'EmuDate0': [EMuDate('1970-01-01'), EMuDate('Jan 1970'), EMuDate('1970')],
+ 'EmuFloat': EMuFloat('1.0'),
+ 'EmuInteger': 1,
+ 'EmuLatitude': EMuLatitude('45 30 15 N'),
+ 'EmuLongitude': EMuLongitude('130 10 5 W'),
+ 'EmuNestedTable_nesttab': [[], ['Text']],
+ 'EmuRef': {'EmuRefOnly': 'Text', 'irn': 1000000},
+ 'EmuRef_tab': [{}, {}, {'EmuRefOnly': 'Text', 'irn': 1000000}],
+ 'EmuTableUngrouped_tab': ['Text'],
+ 'EmuTable_tab': ['Text', 'Text'],
+ 'EmuText': 'Text',
+ 'EmuTime0': [EMuTime('09:00'), EMuTime('12:00'), EMuTime('15:00')],
+ 'irn': 1000000})"""
+    )
+
+
+def test_emucolumn_str(rec):
+    assert str(rec["EmuTable_tab"]) == "EMuColumn(['Text', 'Text'])"
+
+
+def test_emugrid_str(rec):
+    assert (
+        repr(rec.grid("EmuTable_tab").pad())
+        == """EMuGrid([EMuRow({'EmuDate0': EMuDate('1970-01-01'), 'EmuTable_tab': 'Text', 'EmuRef_tab': {}, 'EmuNestedTable_nesttab': []}), EMuRow({'EmuDate0': EMuDate('Jan 1970'), 'EmuTable_tab': 'Text', 'EmuRef_tab': {}, 'EmuNestedTable_nesttab': ['Text']}), EMuRow({'EmuDate0': EMuDate('1970'), 'EmuTable_tab': '', 'EmuRef_tab': {'irn': 1000000, 'EmuRefOnly': 'Text'}, 'EmuNestedTable_nesttab': []})])"""
+    )
+
+
+def test_emurow_str(rec):
+    assert (
+        repr(rec.grid("EmuTable_tab")[0])
+        == "EMuRow({'EmuDate0': EMuDate('1970-01-01'), 'EmuTable_tab': 'Text', 'EmuRef_tab': {}, 'EmuNestedTable_nesttab': []})"
+    )

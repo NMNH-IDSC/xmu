@@ -118,7 +118,7 @@ class EMuConfig(MutableMapping):
         return f"{self.__class__.__name__}({pformat(self._config)})"
 
     def __repr__(self):
-        return repr(self._config)
+        return str(self)
 
     def __getitem__(self, key):
         return self._config[key]
@@ -827,7 +827,7 @@ class EMuRow(MutableMapping):
             raise IndexError(
                 "One or more columns has no data for this row. Use pad() on the parent grid to prevent this error."
             )
-        return f"{self.__class__.__name__}({row})"
+        return f"{self.__class__.__name__}({str(row)})"
 
     def __repr__(self):
         return str(self)
