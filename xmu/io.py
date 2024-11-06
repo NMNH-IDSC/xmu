@@ -186,8 +186,9 @@ class EMuReader:
         handle_repeated_keys : str
             defines how to handle keys that repeat across dicts returned by different jobs.
             Must be one of 'combine' (which combines entires in a list), 'keep' (which keeps
-            the first key found), 'overwrite' (which overwrites the existing key), or 'raise'
-            (which raises a KeyError). Ignored if callback does not return a dict.
+            the first key found), 'overwrite' (which overwrites the existing key), 'raise'
+            (which raises a KeyError), r 'sum' (which sums integer values). Ignored if
+            callback does not return a dict.
 
         Yields
         ------
@@ -202,9 +203,9 @@ class EMuReader:
                 "Not implemented when multiple source files provided"
             )
 
-        allowed = ("combine", "keep", "overwrite", "raise")
+        allowed = ("combine", "keep", "overwrite", "raise", "sum")
         if handle_repeated_keys not in allowed:
-            raise ValueError(f"dict_behvaior must be one of the following: {allowed}")
+            raise ValueError(f"dict_behavior must be one of the following: {allowed}")
 
         # Create temporary directory
         tmpdir = tempfile.mkdtemp(prefix="xmu-")
@@ -238,7 +239,7 @@ class EMuReader:
             if isinstance(results[0], dict):
                 result = {}
                 for result_ in results:
-                    if handle_repeated_keys == "combine":
+                    if handle_repeated_keys in ("combine", "sum"):
                         for key, val in result_.items():
                             if not isinstance(val, list):
                                 val = [val]
@@ -252,6 +253,14 @@ class EMuReader:
                         if set(result_) & set(result):
                             raise KeyError("Duplicate keys returned")
                         result.update(result_)
+                if handle_repeated_keys == "sum":
+                    result_ = {}
+                    for key, vals in result.items():
+                        try:
+                            result_[key] = sum(vals)
+                        except TypeError:
+                            result_[key] = vals
+                    result = result_
                 return result
             elif isinstance(results[0], list):
                 result = []

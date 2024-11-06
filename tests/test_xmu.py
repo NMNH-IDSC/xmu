@@ -941,6 +941,44 @@ def test_read_from_parallel_dict_overwrite(output_dir):
     assert results["irn"] == "63"
 
 
+def test_read_from_parallel_dict_sum(output_dir):
+    def callback(path):
+        results = {"count": 0}
+        reader = EMuReader(path)
+        for rec in reader:
+            rec = EMuRecord(rec, module=reader.module)
+            results["count"] += rec["EmuInteger"]
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_dict_sum.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i, "EmuInteger": 1}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    results = EMuReader(xml_path).from_xml_parallel(
+        callback, num_parts=8, handle_repeated_keys="sum"
+    )
+    assert results["count"] == 64
+
+
+def test_read_from_parallel_dict_invalid(output_dir):
+    def callback(path):
+        results = {}
+        for rec in EMuReader(path):
+            results["irn"] = rec["irn"]
+        return results
+
+    xml_path = str(output_dir / "xmldata_parallel_dict_invalid.xml")
+    records = []
+    for i in range(0, 64):
+        records.append(EMuRecord({"irn": i}, module="emain"))
+    write_xml(records, xml_path, kind="emu")
+    with pytest.raises(ValueError, match="dict_behavior must be one of the following"):
+        EMuReader(xml_path).from_xml_parallel(
+            callback, num_parts=8, handle_repeated_keys="invalid"
+        )
+
+
 def test_read_from_parallel_dict_raise(output_dir):
     def callback(path):
         results = {}
