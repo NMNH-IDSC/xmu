@@ -21,6 +21,7 @@ from xmu import (
     EMuRow,
     EMuSchema,
     EMuTime,
+    clean_xml,
     get_mod,
     has_mod,
     is_nesttab,
@@ -1892,3 +1893,105 @@ def test_mutability(kind, rec):
     rec["EmuNestedTable_nesttab"][0].append("Text")
     rec["EmuNestedTable_nesttab"][0][0] == "Text"
     rec["EmuNestedTable_nesttab"][0] == []
+
+
+@pytest.mark.parametrize(
+    "char",
+    [
+        # (0x00, 0x08)
+        "\u0000",
+        "\u0001",
+        "\u0002",
+        "\u0003",
+        "\u0004",
+        "\u0005",
+        "\u0006",
+        "\u0007",
+        "\u0008",
+        # (0x0B, 0x0C)
+        "\u000B",
+        "\u000C",
+        # (0x0E, 0x1F)
+        "\u000E",
+        "\u000F",
+        # (0x7F, 0x84)
+        "\u007F",
+        "\u0080",
+        "\u0081",
+        "\u0082",
+        "\u0083",
+        "\u0084",
+        # (0x86, 0x9F)
+        "\u0086",
+        "\u0087",
+        "\u0088",
+        "\u0089",
+        "\u008A",
+        "\u008B",
+        "\u008C",
+        "\u008D",
+        "\u008E",
+        "\u008F",
+        "\u0090",
+        "\u0091",
+        "\u0092",
+        "\u0093",
+        "\u0094",
+        "\u0095",
+        "\u0096",
+        "\u0097",
+        "\u0098",
+        "\u0099",
+        "\u009A",
+        "\u009B",
+        "\u009C",
+        "\u009D",
+        "\u009E",
+        "\u009F",
+        # (0xFDD0, 0xFDDF)
+        "\uFDD0",
+        "\uFDD1",
+        "\uFDD2",
+        "\uFDD3",
+        "\uFDD4",
+        "\uFDD5",
+        "\uFDD6",
+        "\uFDD7",
+        "\uFDD8",
+        "\uFDD9",
+        "\uFDDA",
+        "\uFDDB",
+        "\uFDDC",
+        "\uFDDD",
+        "\uFDDE",
+        "\uFDDF",
+        # (0xFFFE, 0xFFFF)
+        "\uFFFE",
+        "\uFFFF",
+    ],
+)
+def test_clean_xml(xml_file, output_dir, char):
+    with open(xml_file, encoding="utf-8") as f:
+        xml = f.read()
+    xml = xml.replace(">Text<", f">Te{char}xt<")
+    path = output_dir / "test_clean_xml.xml"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(xml)
+    reader = EMuReader(clean_xml(path))
+    for rec in reader:
+        assert rec["EmuText"] == "Text"
+
+
+def test_emuconfig_str(rec):
+    config = rec.config
+    config["schema_path"] = None
+    assert (
+        repr(config)
+        == """EMuConfig({'groups': {'emain': {'EmuGrid_tab': ['EmuDate0',
+                                      'EmuNestedTable_nesttab',
+                                      'EmuTable_tab',
+                                      'EmuRef_tab']}},
+ 'lookup_no_autopopulate': ['emain.EmuLookupParent', 'emain.EmuLookupChild'],
+ 'make_visible': [],
+ 'schema_path': None})"""
+    )

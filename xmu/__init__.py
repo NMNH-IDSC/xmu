@@ -9,7 +9,7 @@ from .containers import (
     EMuRecord,
     EMuSchema,
 )
-from .io import EMuReader, write_csv, write_group, write_import, write_xml
+from .io import EMuReader, clean_xml, write_csv, write_group, write_import, write_xml
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
 from .utils import (
     flatten,
@@ -24,6 +24,6 @@ from .utils import (
     strip_tab,
 )
 
-__version__ = "0.1b7"
+__version__ = "0.1b8"
 __author__ = "Adam Mansur"
 __credits__ = "Smithsonian National Museum of Natural History"
