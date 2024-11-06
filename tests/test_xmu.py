@@ -21,6 +21,7 @@ from xmu import (
     EMuRow,
     EMuSchema,
     EMuTime,
+    EMuType,
     clean_xml,
     get_mod,
     has_mod,
@@ -1237,6 +1238,14 @@ def test_rec_no_module():
         EMuRecord()
 
 
+def test_dtype_base():
+    # NOTE: The init method for the base class is not actually called by an child class
+    val = EMuType("test")
+    assert val.verbatim == "test"
+    assert val.value == "test"
+    assert val.format == "{}"
+
+
 @pytest.mark.parametrize(
     "date_string,kind,year,month,day,formatted,min_val,max_val",
     [
@@ -1470,15 +1479,6 @@ def test_dtype_date_invalid_directive():
         date.strftime("%Y-%m-%d")
 
 
-@pytest.mark.skip(reason="attribute modification no longer permitted")
-@pytest.mark.parametrize("attr", ["min_value", "max_value"])
-def test_dtype_date_bad_kind(attr):
-    date = EMuDate("1970-01-01")
-    date.kind = None
-    with pytest.raises(ValueError, match="Invalid kind:"):
-        getattr(date, attr)
-
-
 def test_dtype_date_to_datetime():
     date = EMuDate("1970-01-01")
     time = EMuTime("15:00")
@@ -1511,13 +1511,18 @@ def test_dtype_date_invalid(date_tuple, match):
         EMuDate(date_tuple)
 
 
-@pytest.mark.skip(reason="attribute modification no longer permitted")
 def test_dtype_date_setters():
-    date = EMuDate("1970-01-01")
-    date.year = 1971
-    date.month = 2
-    date.day = 2
-    assert str(date) == "1971-02-02"
+    with pytest.raises(AttributeError, match="Cannot modify existing attribute"):
+        EMuDate("1970-01-01").year = 1971
+
+
+def test_dtype_date_pad_year():
+    assert str(EMuDate("0-1-1")) == "0000-01-01"
+
+
+def test_dtype_date_range_to_datetime():
+    with pytest.raises(ValueError, match="Cannot convert range to datetime"):
+        EMuDate("Jan 1970").to_datetime(time="12:00")
 
 
 @pytest.mark.parametrize(
@@ -1655,12 +1660,6 @@ def test_dtype_setattr():
 def test_dtype_delattr():
     with pytest.raises(AttributeError, match="Cannot delete attribute"):
         del EMuFloat("0.1200").value
-
-
-@pytest.mark.skip(reason="no longer the expected behavior")
-def test_dtype_float_no_format():
-    with pytest.raises(ValueError, match="Must provide fmt when passing a float"):
-        EMuFloat(0.12)
 
 
 def test_dtype_float_contain_no_range():

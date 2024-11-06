@@ -422,6 +422,7 @@ class EMuCoord(EMuFloat):
         """
 
         self.always_compare_range = False
+        self.format = "{}"
 
         if isinstance(val, str):
             self.verbatim = val.strip()
@@ -763,7 +764,7 @@ class EMuDate(EMuType):
 
         # Zero-pad two-to-three-digit years if no format is provided. EMu does
         # not zero-pad years less than 1000 during export, which trips up the
-        # date parsing below.
+        # date parsing below. Assumes year-month-day format.
         if (
             not fmt_provided
             and isinstance(val, str)
@@ -775,10 +776,11 @@ class EMuDate(EMuType):
                 val,
             )
 
-        # Typical EMu formats for dates
+        # Common data formats
         fmts = [
             ("day", "%Y-%m-%d"),
             ("day", "%d %b %Y"),
+            ("day", "%d-%b-%Y"),
             ("month", "%Y-%m-"),
             ("month", "%b %Y"),
             ("year", "%Y"),
@@ -949,27 +951,15 @@ class EMuDate(EMuType):
         """Year of the parsed date"""
         return self.value.year
 
-    @year.setter
-    def year(self, year):
-        self.value = self.value.__class__(year, self.month, self.day)
-
     @property
     def month(self):
         """Month of the parsed date"""
         return self.value.month if self.kind != "year" else None
 
-    @month.setter
-    def month(self, month):
-        self.value = self.value.__class__(self.year, month, self.day)
-
     @property
     def day(self):
         """Day of the parsed date"""
         return self.value.day if self.kind == "day" else None
-
-    @day.setter
-    def day(self, day):
-        self.value = self.value.__class__(self.year, self.month, day)
 
     @staticmethod
     def strptime(val, fmt):
@@ -1187,18 +1177,7 @@ class EMuTime(EMuType):
         datetime.datetime
             combined datetime
         """
-        if date.min_value != date.max_value:
-            raise ValueError("Cannot convert range to datetime")
-        return datetime(
-            date.year,
-            date.month,
-            date.day,
-            self.hour,
-            self.minute,
-            self.second,
-            self.microsecond,
-            self.tzinfo,
-        )
+        return EMuDate(date).to_datetime(self)
 
     @property
     def hour(self):
