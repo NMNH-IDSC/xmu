@@ -7,7 +7,7 @@ from functools import lru_cache
 TAB_SUFFIXES = ("0", "_nesttab", "_nesttab_inner", "_tab")
 
 #: tuple : suffixes that designate references in EMu
-REF_SUFFIXES = ("Ref", "Ref_nesttab", "Ref_nesttab_inner", "Ref_tab")
+REF_SUFFIXES = ("RefLocal", "Ref", "Ref_nesttab", "Ref_nesttab_inner", "Ref_tab")
 
 #: tuple : suffixes that designate nested tables in EMu
 NESTTAB_SUFFIXES = ("_nesttab",)

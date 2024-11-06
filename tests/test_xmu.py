@@ -741,6 +741,15 @@ def test_grid_get_item(rec):
     )
 
 
+def test_grid_items(rec):
+    assert dict(rec.grid("EmuTable_tab").pad().items()) == {
+        "EmuDate0": [EMuDate("1970-01-01"), EMuDate("Jan 1970"), EMuDate("1970")],
+        "EmuTable_tab": ["Text", "Text", ""],
+        "EmuRef_tab": [{}, {}, {"irn": 1000000, "EmuRefOnly": "Text"}],
+        "EmuNestedTable_nesttab": [[], ["Text"], []],
+    }
+
+
 def test_grid_del_item(rec):
     grid = rec.grid("EmuTable_tab").pad()
     del grid[0]
@@ -1038,6 +1047,14 @@ def test_read_from_zip(xml_file, output_dir, expected_rec):
         assert rec == expected_rec
 
 
+def test_read_with_limit(output_dir):
+    records = [EMuRecord({"irn": i}, module="emain") for i in range(1000000, 1000010)]
+    write_xml(records, output_dir / "xmldata_10.xml", kind="emu")
+    xml_path = str(output_dir / "xmldata_10.xml")
+    records = [r for r in EMuReader(xml_path).from_xml(start=2, limit=2)]
+    assert records == [{"irn": "1000002"}, {"irn": "1000003"}]
+
+
 def test_rec_round_trip(rec, output_dir):
     path = str(output_dir / "import.xml")
     write_xml([rec], path, kind="emu")
@@ -1075,7 +1092,7 @@ def test_rec_getitem_invalid(rec, path):
         rec[path]
 
 
-def test_report_progress(xml_file, output_dir, capsys):
+def test_report_progress(output_dir, capsys):
     reader = EMuReader(output_dir)
     for i, _ in enumerate(reader):
         reader.report_progress("count", 10000)
@@ -1121,6 +1138,15 @@ def test_group_no_metadata(rec, output_dir):
     rec.schema.validate_paths = True
 
 
+@pytest.mark.parametrize(
+    "nan",
+    ["nan", "<NA>", "NaT"],
+)
+def test_na_coerce(rec, nan):
+    rec["EmuText"] = nan
+    assert rec["EmuText"] == ""
+
+
 def test_col_not_list(rec):
     with pytest.raises(TypeError, match="Columns must be lists"):
         rec["EmuTable_tab"] = ""
@@ -1129,13 +1155,6 @@ def test_col_not_list(rec):
 def test_rec_not_dict(rec):
     with pytest.raises(TypeError, match="References must be dicts"):
         rec["EmuRef"] = []
-
-
-@pytest.mark.skip(reason="schema is no longer lazy loaded")
-def test_rec_lazy_load_schema():
-    EMuRecord.schema = None
-    EMuRecord(module="ecatalogue")
-    assert EMuRecord.schema
 
 
 def test_rec_update():

@@ -102,7 +102,7 @@ class EMuConfig(MutableMapping):
             "lookup_no_autopopulate": (
                 [],
                 (
-                    "# Path as 'module.field' to fields that should not be populated"
+                    "Path as 'module.field' to fields that should not be populated"
                     " when filling a lookup hierarchy during import."
                 ),
             ),
@@ -1172,7 +1172,6 @@ class EMuRecord(dict):
                 try:
                     self.schema.get_field_info(module, path)
                 except KeyError:
-                    warn(f"Invalid path: {dotpath} (module={module})")
                     raise KeyError(
                         f"Invalid path: {dotpath} (module={module})"
                     ) from exc
@@ -1449,11 +1448,7 @@ def _coerce_values(parent, child, key=None):
     # Coerce non-list, non-dict data to an appropriate type if a schema is defined
     elif field_info and not isinstance(child, (dict, list)):
         # Coerce common NAs to None
-        if (
-            isinstance(child, float)
-            and str(child) == "nan"
-            or str(child) in ("<NA>", "NaT")
-        ):
+        if str(child) in {"nan", "<NA>", "NaT"}:
             child = None
 
         # Coerce empty values to empty strings in Text fields. Exclude
