@@ -58,9 +58,9 @@ class EMuReader:
     #: :meta hide-value:
     schema = None
 
-    def __init__(self, path, json_path=None):
+    def __init__(self, path, rec_class=dict, json_path=None):
         self.path = str(path)
-        self._rec_class = dict
+        self._rec_class = rec_class
         self.json_path = json_path
         self.files = []
         self.module = None
