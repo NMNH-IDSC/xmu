@@ -738,15 +738,18 @@ class EMuDate(EMuType):
 
         Parameters
         ----------
-        val : str, int, datetime.date, or three ints
+        val : str, int, datetime.date, Iterable[int, int, int]
             the date. If an int, must be a year only. If multiple values are given,
-            they must be a year, month, and day as ints.
+            they must be a year, month, and day as ints. If the string "today" is
+            given, returns today's date.
         fmt : str
             a date format string
         """
 
         if len(val) == 1:
             val = val[0]
+        if val == "today":
+            val = datetime.now().strftime("%Y-%m-%d")
 
         self.verbatim = val
         self.always_compare_range = True
@@ -781,12 +784,19 @@ class EMuDate(EMuType):
 
         # Common data formats
         fmts = [
+            # EMu date formats
             ("day", "%Y-%m-%d"),
             ("day", "%d %b %Y"),
-            ("day", "%d-%b-%Y"),
-            ("month", "%Y-%m-"),
             ("month", "%b %Y"),
+            ("month", "%Y-%m-"),
             ("year", "%Y"),
+            # Other common date formats
+            ("day", "%d-%b-%Y"),
+            ("day", "%b %d %Y"),
+            ("day", "%b %d, %Y"),
+            ("day", "%B %d %Y"),
+            ("day", "%B %d, %Y"),
+            ("month", "%B %Y"),
         ]
 
         if isinstance(val, EMuDate):
