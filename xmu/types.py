@@ -342,7 +342,7 @@ class EMuFloat(EMuType):
         # Verify that the parsed value is the same as the original string if
         # the format string was calculated
         if not fmt_provided and val.lstrip("0").rstrip(".") != str(self).lstrip("0"):
-            raise ValueError(f"Parsing changed value ('{val}' became '{self}')")
+            raise ValueError(f"Parsing changed value ({repr(val)} became {repr(self)})")
 
     def __format__(self, format_spec):
         try:
@@ -422,7 +422,6 @@ class EMuCoord(EMuFloat):
         """
 
         self.always_compare_range = False
-        self.format = "{}"
 
         if isinstance(val, str):
             self.verbatim = val.strip()
@@ -430,18 +429,22 @@ class EMuCoord(EMuFloat):
             if len(parts) > 3:
                 raise ValueError(f"Invalid coordinate: {self.verbatim}")
             self.degrees = EMuFloat(parts[0])
-            if len(parts) > 1:
+            if len(parts) == 1:
+                self.format = self.degrees.format
+            elif len(parts) > 1:
                 self.minutes = EMuFloat(parts[1])
+                self.format = "{}"
             if len(parts) > 2:
                 self.seconds = EMuFloat(parts[2])
         elif isinstance(val, EMuCoord):
             self.verbatim = val.verbatim
-            for attr in ("degrees", "minutes", "seconds"):
+            for attr in ("degrees", "minutes", "seconds", "format"):
                 if getattr(val, attr) is not None:
                     setattr(self, attr, getattr(val, attr))
         else:
             self.verbatim = val
             self.degrees = EMuFloat(abs(val), fmt=fmt)
+            self.format = self.degrees.format
 
         self._set_default_attr("minutes", None)
         self._set_default_attr("seconds", None)

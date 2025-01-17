@@ -1744,6 +1744,10 @@ def test_dtype_coord_rounding(val, unc_m, expected_dms, expected_dec):
     assert lat.to_dec(unc_m) == expected_dec
 
 
+def test_dtype_coord_trailing_zero():
+    assert str(EMuFloat(EMuLatitude("45.10"))) == "45.10"
+
+
 @pytest.mark.parametrize("coord_class", [EMuLatitude, EMuLongitude])
 def test_dtype_coord_invalid(coord_class):
     with pytest.raises(ValueError, match=r"Invalid coordinate"):
