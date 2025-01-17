@@ -724,8 +724,8 @@ def test_empty_grid(rec):
     assert len(grid) == 0
 
 
-def test_grid_query(grid):
-    results = grid.query("EmuRef_tab", where={"EmuTable_tab": "Text"})
+def test_grid_filter(grid):
+    results = grid.filter("EmuRef_tab", where={"EmuTable_tab": "Text"})
     assert results == [{}, {}]
 
 
@@ -1489,7 +1489,7 @@ def test_dtype_date_operations():
 
 def test_dtype_date_parse_failed():
     with pytest.raises(ValueError, match="Could not parse date:"):
-        EMuDate("Jan 1, 1970")
+        EMuDate("01/01/1970")
 
 
 def test_dtype_date_invalid_directive():

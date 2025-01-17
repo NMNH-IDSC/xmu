@@ -1058,8 +1058,8 @@ class EMuGrid(MutableSequence):
             self._rec[col].extend([fill_value for _ in range(diff)])
         return self
 
-    def query(self, field=None, where=None):
-        """Queries the grid
+    def filter(self, field=None, where=None):
+        """Filters the grid
 
         Parameters
         ----------
