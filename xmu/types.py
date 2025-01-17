@@ -964,6 +964,21 @@ class EMuDate(EMuType):
         """Day of the parsed date"""
         return self.value.day if self.kind == "day" else None
 
+    def date(self):
+        """Returns the datetime.date corresponding to this object
+
+        Included to allow instances of this class to play well with functions that
+        accept dates using both the datetime.date and datetime.datetime classes;
+        instances of datetime.datetime include a date method that allows them to
+        be easily converted to dates, for example, for comparisons.
+
+        Returns
+        -------
+        datetime.date
+            the date corresponding to this object
+        """
+        return self.value
+
     @staticmethod
     def strptime(val, fmt):
         """Formats a string as a date
