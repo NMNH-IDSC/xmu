@@ -1,7 +1,7 @@
 """Functions to assess whether EMu field names are tables, references, etc."""
 
 import re
-from functools import lru_cache
+from functools import cache
 
 #: tuple : suffixes that designate tables in EMu
 TAB_SUFFIXES = ("0", "_nesttab", "_nesttab_inner", "_tab")
@@ -25,8 +25,8 @@ REF_PATTERN = "(" + "|".join(REF_SUFFIXES) + ")$"
 MOD_PATTERN = r"\(\d*[=\+\-]\)$"
 
 
-@lru_cache(maxsize=None)
-def is_tab(field):
+@cache
+def is_tab(field: str) -> bool:
     """Checks if a field name is a table
 
     Parameters
@@ -42,8 +42,8 @@ def is_tab(field):
     return strip_mod(field).endswith(TAB_SUFFIXES)
 
 
-@lru_cache(maxsize=None)
-def is_nesttab(field):
+@cache
+def is_nesttab(field: str) -> bool:
     """Checks if a field name is a nested table
 
     Parameters
@@ -59,8 +59,8 @@ def is_nesttab(field):
     return strip_mod(field).endswith(NESTTAB_SUFFIXES)
 
 
-@lru_cache(maxsize=None)
-def is_nesttab_inner(field):
+@cache
+def is_nesttab_inner(field: str) -> bool:
     """Checks if a field name is an inner nested table
 
     Parameters
@@ -76,8 +76,8 @@ def is_nesttab_inner(field):
     return strip_mod(field).endswith(NESTTAB_INNER_SUFFIXES)
 
 
-@lru_cache(maxsize=None)
-def is_ref_tab(field):
+@cache
+def is_ref_tab(field: str) -> bool:
     """Checks if a field name is a reference table
 
     Parameters
@@ -93,8 +93,8 @@ def is_ref_tab(field):
     return is_tab(field) and is_ref(field)
 
 
-@lru_cache(maxsize=None)
-def is_ref(field):
+@cache
+def is_ref(field: str) -> bool:
     """Checks if a field name is a reference
 
     Parameters
@@ -110,8 +110,8 @@ def is_ref(field):
     return strip_mod(field).endswith(REF_SUFFIXES)
 
 
-@lru_cache(maxsize=None)
-def has_mod(field):
+@cache
+def has_mod(field: str) -> bool:
     """Checks if a field name ends with an update modifier
 
     Parameters
@@ -130,8 +130,8 @@ def has_mod(field):
     return result
 
 
-@lru_cache(maxsize=None)
-def strip_tab(field):
+@cache
+def strip_tab(field: str) -> str:
     """Strips table suffixes from a field name
 
     Parameters
@@ -147,8 +147,8 @@ def strip_tab(field):
     return re.sub(TAB_PATTERN, "", strip_mod(field))
 
 
-@lru_cache(maxsize=None)
-def strip_mod(field):
+@cache
+def strip_mod(field: str) -> str:
     """Strips update modifier from a field name
 
     Parameters
@@ -164,8 +164,8 @@ def strip_mod(field):
     return field.rsplit("(", 1)[0]
 
 
-@lru_cache(maxsize=None)
-def get_mod(field):
+@cache
+def get_mod(field: str) -> str:
     """Gets the update modifier from a field name
 
     Parameters
@@ -186,13 +186,18 @@ def get_mod(field):
     return mod.strip("()")
 
 
-def flatten(obj, path=None, result=None):
+def flatten(obj: dict, path: list = None, result: dict = None) -> dict:
     """Flattens a record to a one-level dict
 
     Parameters
     ----------
-    obj : list
-        a list of EMuRecords
+    obj : dict
+        an EMu record
+    path : list, omit
+        the path to the current key. Users should omit when calling.
+    result: dict, optional
+        the flattened object. Defaults to empty dict. Users should generally omit
+        when calling.
 
     Returns
     -------
