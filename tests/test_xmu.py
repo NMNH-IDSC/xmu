@@ -1594,6 +1594,10 @@ def test_dtype_float_str(val, fmt, expected):
     assert str(EMuFloat(val, fmt)) == expected
 
 
+def test_dtype_float_round():
+    assert EMuFloat("1.23456").round(3) == EMuFloat("1.235")
+
+
 @pytest.mark.parametrize(
     "cl,val,expected",
     [

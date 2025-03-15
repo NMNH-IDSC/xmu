@@ -361,6 +361,21 @@ class EMuFloat(EMuType):
         """Number of decimal places from the formatting string"""
         return int(self.format.strip("{:.f}"))
 
+    def round(self, dec_places: int) -> "EMuFloat":
+        """Rounds the float to the given number of decimal places
+
+        Parameters
+        ----------
+        dec_places : int
+            the number of decimal places
+
+        Returns
+        -------
+        EMuFloat
+            the rounded value
+        """
+        return self.__class__(("{:." + str(dec_places) + "f}").format(self))
+
 
 class EMuCoord(EMuFloat):
     """Wraps coordinates read from strings
