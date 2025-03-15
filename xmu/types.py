@@ -1,11 +1,14 @@
 """Wrappers for data that can be garbled during read/write"""
 
+from __future__ import annotations
+
 import logging
 import re
 from calendar import monthrange
 from collections import namedtuple
 from datetime import MINYEAR, MAXYEAR, date, datetime, time
 from math import log10, modf
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -25,39 +28,39 @@ class EMuType:
 
     Parameters
     ----------
-    val : mixed
+    val : Any
         value to wrap
     fmt : str
         formatting string used to translate value back to a string
 
     Attributes
     ----------
-    value : mixed
+    value : Any
         value coerced to the correct type from a string
     format : str
         a formatting string
-    verbatim : mixed
+    verbatim : Any
         the original, unparsed value
     """
 
-    def __init__(self, val, fmt="{}"):
+    def __init__(self, val: Any, fmt: str = "{}"):
         self.verbatim = val
         self.value = val
         self.format = fmt
         self.always_compare_range = False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.format.format(self.value)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}('{str(self)}')"
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if self.value == other:
             return True
         try:
             other = self.coerce(other)
-        except:
+        except (TypeError, ValueError):
             return False
         if self.is_range() or self.always_compare_range:
             return (
@@ -67,113 +70,117 @@ class EMuType:
             )
         return self.value == other.value
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         try:
             other = self.coerce(other)
         except:
             raise TypeError(
-                f"'<' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+                f"'<' not supported between instances of '{self.__class__.__name__}'"
+                f" and '{type(other)}'"
             )
         if self.is_range() or self.always_compare_range:
             return self.max_comp < other.min_comp
         return self.value < other.value
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> bool:
         try:
             other = self.coerce(other)
         except:
             raise TypeError(
-                f"'<=' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+                f"'<=' not supported between instances of '{self.__class__.__name__}'"
+                f" and '{type(other)}'"
             )
         if self.is_range() or self.always_compare_range:
             return self.min_comp <= other.max_comp
         return self.value <= other.value
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         try:
             other = self.coerce(other)
         except:
             raise TypeError(
-                f"'>' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+                f"'>' not supported between instances of '{self.__class__.__name__}'"
+                f" and '{type(other)}'"
             )
         if self.is_range() or self.always_compare_range:
             other = self.coerce(other)
             return self.min_comp > other.max_comp
         return self.value > other.value
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> bool:
         try:
             other = self.coerce(other)
         except:
             raise TypeError(
-                f"'>=' not supported between instances of '{self.__class__.__name__}' and '{type(other)}'"
+                f"'>=' not supported between instances of '{self.__class__.__name__}'"
+                f" and '{type(other)}'"
             )
         if self.is_range() or self.always_compare_range:
             return self.max_comp >= other.min_comp
         return self.value >= other.value
 
-    def __contains__(self, other):
+    def __contains__(self, other: Any) -> bool:
         if self.is_range():
             other = self.coerce(other)
             return self.min_comp <= other.min_comp and self.max_comp >= other.max_comp
         raise ValueError(f"{self.__class__.__name__} is not a range")
 
-    def __add__(self, other):
+    def __add__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__add__")
 
-    def __sub__(self, other):
+    def __sub__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__sub__")
 
-    def __mul__(self, other):
+    def __mul__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__mul__")
 
-    def __floordiv__(self, other):
+    def __floordiv__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__floordiv__")
 
-    def __truediv__(self, other):
+    def __truediv__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__truediv__")
 
-    def __mod__(self, other):
+    def __mod__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__mod__")
 
-    def __divmod__(self, other):
+    def __divmod__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__divmod__")
 
-    def __pow__(self, other):
+    def __pow__(self, other) -> EMuType | int | float:
         return self._math_op(other, "__pow__")
 
-    def __iadd__(self, other):
+    def __iadd__(self, other: Any) -> EMuType:
         result = self + other
         return self.__class__(result.value, result.format)
 
-    def __isub__(self, other):
+    def __isub__(self, other: Any) -> EMuType:
         result = self - other
         return self.__class__(result.value, result.format)
 
-    def __imul__(self, other):
+    def __imul__(self, other: Any) -> EMuType:
         result = self * other
         return self.__class__(result.value, result.format)
 
-    def __ifloordiv__(self, other):
+    def __ifloordiv__(self, other: Any) -> EMuType:
         result = self // other
         return self.__class__(result.value, result.format)
 
-    def __itruediv__(self, other):
+    def __itruediv__(self, other: Any) -> EMuType:
         result = self / other
         return self.__class__(result.value, result.format)
 
-    def __imod__(self, other):
+    def __imod__(self, other: Any) -> EMuType:
         result = self % other
         return self.__class__(result.value, result.format)
 
-    def __ipow__(self, other):
+    def __ipow__(self, other: Any) -> EMuType:
         result = self**other
         return self.__class__(result.value, result.format)
 
-    def __setattr__(self, attr, val):
+    def __setattr__(self, attr: str, val: Any) -> None:
         try:
             existing = getattr(self, attr)
         except AttributeError:
@@ -185,44 +192,44 @@ class EMuType:
                     f" tried to assign {repr(val)})"
                 )
 
-    def __delattr__(self, attr):
+    def __delattr__(self, attr: str) -> None:
         raise AttributeError("Cannot delete attribute")
 
     @property
-    def min_value(self):
+    def min_value(self) -> Any:
         """Minimum value needed to express the original string"""
         return self.value
 
     @property
-    def max_value(self):
+    def max_value(self) -> Any:
         """Maximum value needed to express the original string"""
         return self.value
 
     @property
-    def comp(self):
+    def comp(self) -> Any:
         """Value to use for comparisons"""
         return self.value
 
     @property
-    def min_comp(self):
+    def min_comp(self) -> Any:
         """Minimum value to use for comparisons"""
         return self.value
 
     @property
-    def max_comp(self):
+    def max_comp(self) -> Any:
         """Maximum value to use for comparisons"""
         return self.value
 
-    def emu_str(self):
+    def emu_str(self) -> str:
         """Returns a string representation suitable for EMu"""
         return str(self)
 
-    def coerce(self, other):
+    def coerce(self, other: Any) -> EMuType:
         """Coerces another object to the current class
 
         Parameters
         ----------
-        other : mixed
+        other : Any
             an object to convert to this class
 
         Returns
@@ -234,12 +241,17 @@ class EMuType:
             other = self.__class__(other)
         return other
 
-    def is_range(self):
+    def is_range(self) -> bool:
         """Checks if class represents a range"""
         return self.min_comp != self.max_comp
 
-    def _math_op(self, other, operation):
-        """Performs the specified arithmetic operation"""
+    def _math_op(self, other, operation) -> EMuType | int | float:
+        """Performs the specified arithmetic operation
+
+        Wraps result in instance class if possible. In the case of values that
+        can't be expressed using the original class (for example, the difference
+        between two dates), it returns the result itself.
+        """
 
         if self.is_range():
             min_val = self.__class__(self.min_value)._math_op(other, operation)
@@ -279,7 +291,7 @@ class EMuType:
             # class, for example, subtracting one date from another
             return val
 
-    def _set_default_attr(self, attr, val=None):
+    def _set_default_attr(self, attr: str, val: Any = None) -> None:
         try:
             getattr(self, attr)
         except AttributeError:
@@ -291,7 +303,7 @@ class EMuFloat(EMuType):
 
     Parameters
     ----------
-    val : str or float
+    val : str | float
         float as a string or float
     fmt : str
         formatting string used to convert the float back to a string. Computed
@@ -303,11 +315,11 @@ class EMuFloat(EMuType):
         float parsed from string
     format : str
         formatting string used to convert the float back to a string
-    verbatim : mixed
+    verbatim : Any
         the original, unparsed value
     """
 
-    def __init__(self, val, fmt=None):
+    def __init__(self, val: str | float, fmt: str = None):
         """Initialize an EMuFloat object
 
         Parameters
@@ -348,20 +360,20 @@ class EMuFloat(EMuType):
         if not fmt_provided and val.lstrip("0").rstrip(".") != str(self).lstrip("0"):
             raise ValueError(f"Parsing changed value ({repr(val)} became {repr(self)})")
 
-    def __format__(self, format_spec):
+    def __format__(self, format_spec: str) -> str:
         try:
             return format(str(self), format_spec)
         except ValueError:
             return format(float(self), format_spec)
 
-    def __int__(self):
+    def __int__(self) -> int:
         return int(self.value)
 
-    def __float__(self):
+    def __float__(self) -> float:
         return self.value
 
     @property
-    def dec_places(self):
+    def dec_places(self) -> int:
         """Number of decimal places from the formatting string"""
         return int(self.format.strip("{:.f}"))
 
@@ -386,8 +398,8 @@ class EMuCoord(EMuFloat):
 
     Attributes
     ----------
-    value : float
-        coordinate as a float
+    value : str | float
+        coordinate as a string or float
     format : str
         formatting string used to convert the float back to a string
     degrees : EMuFloat
@@ -396,7 +408,7 @@ class EMuCoord(EMuFloat):
         minutes parsed from original, if any
     seconds : EMuFloat
         seconds parsed from original, if any
-    verbatim : mixed
+    verbatim : Any
         the original, unparsed value
     """
 
@@ -429,12 +441,12 @@ class EMuCoord(EMuFloat):
         5: deg_dist_m / 100000,
     }
 
-    def __init__(self, val, fmt=None):
+    def __init__(self, val: str | float, fmt: str = None):
         """Initializes an EMuCoord object
 
         Parameters
         ----------
-        val : str or float
+        val : str | float
             coordinate
         fmt : str
             formatting string used to convert a float back to a string
@@ -480,22 +492,22 @@ class EMuCoord(EMuFloat):
         if self.seconds and self.seconds > 60:
             raise ValueError(f"Invalid seconds: {val}")
 
-    def __format__(self, format_spec):
+    def __format__(self, format_spec: str) -> str:
         try:
             return format(str(self), format_spec)
         except ValueError:
             return format(float(self), format_spec)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.kind == "dms":
             parts = (self.degrees, self.minutes, self.seconds)
             return f"{' '.join([str(p) for p in parts if p is not None])} {self.hemisphere}"
         return str(self._sign * self.degrees)
 
-    def __int__(self):
+    def __int__(self) -> int:
         return int(float(self))
 
-    def __float__(self):
+    def __float__(self) -> float:
         val = EMuFloat(self.degrees)
         if self.minutes:
             val += self.minutes / 60
@@ -504,12 +516,12 @@ class EMuCoord(EMuFloat):
         return float(self._sign * val)
 
     @property
-    def hemisphere(self):
+    def hemisphere(self) -> str:
         """Gets the hemisphere in which a coordinate is located"""
         return self.pos[0] if self._sign > 0 else self.neg[0]
 
     @property
-    def kind(self):
+    def kind(self) -> str:
         """Gets kind of verbatim coordinate string"""
         try:
             float(self.verbatim)
@@ -517,7 +529,7 @@ class EMuCoord(EMuFloat):
             return "dms"
         return "decimal"
 
-    def to_dms(self, unc_m=None):
+    def to_dms(self, unc_m: int = None) -> str:
         """Expresses coordinate as degrees-minutes-seconds
 
         Parameters
@@ -588,7 +600,7 @@ class EMuCoord(EMuFloat):
 
         return f"{' '.join([str(p) for p in parts])} {self.hemisphere}"
 
-    def to_dec(self, unc_m=None):
+    def to_dec(self, unc_m: int = None) -> str:
         """Expresses coordinate as a decimal
 
         Parameters
@@ -621,7 +633,7 @@ class EMuCoord(EMuFloat):
             last_unc_m = ref_unc_m
         return f"{{:.{key}f}}".format(self)
 
-    def coord_uncertainty_m(self):
+    def coord_uncertainty_m(self) -> int:
         """Estimates coordinate uncertainty in meters based on distance at equator
 
         Returns
@@ -637,8 +649,8 @@ class EMuCoord(EMuFloat):
             unc_m = self.deg_dist_m / 10**self.degrees.dec_places
         return self._round_to_exp_10(unc_m)
 
-    def _get_sign(self):
-        """Gets the sign of the decimal coordinate"""
+    def _get_sign(self) -> int:
+        """Gets the sign of the decimal coordinate represented as +1 or -1"""
         if isinstance(self.verbatim, str):
             val = self.verbatim.strip()
 
@@ -661,7 +673,7 @@ class EMuCoord(EMuFloat):
         return 1 if self.verbatim >= 0 else -1
 
     @staticmethod
-    def _round_to_exp_10(val):
+    def _round_to_exp_10(val: int | float) -> int:
         """Rounds value to an exponent of 10"""
         frac, exp = modf(log10(val))
         if frac > log10(4.99999999):
@@ -681,7 +693,7 @@ class EMuLatitude(EMuCoord):
     #: tuple of int : range of allowable values
     bounds = (-90, 90)
 
-    def __init__(self, val, fmt=None):
+    def __init__(self, val: str | float, fmt: str = None):
         """Initialize an EMuLatitude object
 
         Parameters
@@ -706,7 +718,7 @@ class EMuLongitude(EMuCoord):
     #: tuple of int : range of allowable values
     bounds = (-180, 180)
 
-    def __init__(self, val, fmt=None):
+    def __init__(self, val: str | float, fmt: str = None):
         """Initialize an EMuLongitude object
 
         Parameters
@@ -741,7 +753,7 @@ class EMuDate(EMuType):
         date parsed from string
     format : str
         date format string used to convert the date back to a string
-    verbatim : mixed
+    verbatim : Any
         the original, unparsed value
     """
 
@@ -752,7 +764,7 @@ class EMuDate(EMuType):
     }
     formats = {"day": "%Y-%m-%d", "month": "%b %Y", "year": "%Y"}
 
-    def __init__(self, *val, fmt=None):
+    def __init__(self, *val, fmt: str = None):
         """Initialize an EMuDate object
 
         Parameters
@@ -877,10 +889,10 @@ class EMuDate(EMuType):
         # if not fmt_provided and str(val) != self.strftime(fmt):
         #    raise ValueError(f"Parsing changed value ('{val}' became '{self}')")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.strftime(self.format)
 
-    def strftime(self, fmt=None):
+    def strftime(self, fmt: str = None) -> str:
         """Formats date as a string
 
         Parameters
@@ -895,12 +907,12 @@ class EMuDate(EMuType):
         """
         return self._strftime(self, fmt if fmt is not None else self.format)
 
-    def to_datetime(self, time):
+    def to_datetime(self, tm: time) -> datetime:
         """Combines date and time into a single datetime
 
         Parameters
         ----------
-        time : datetime.time
+        tm : datetime.time
             time to use with date
 
         Returns
@@ -914,14 +926,14 @@ class EMuDate(EMuType):
             self.year,
             self.month,
             self.day,
-            time.hour,
-            time.minute,
-            time.second,
-            time.microsecond,
-            time.tzinfo,
+            tm.hour,
+            tm.minute,
+            tm.second,
+            tm.microsecond,
+            tm.tzinfo,
         )
 
-    def emu_str(self):
+    def emu_str(self) -> str:
         """Returns a string representation of the date suitable for EMu"""
         if self.year < 0:
             year = str(self.year).zfill(5)
@@ -931,7 +943,7 @@ class EMuDate(EMuType):
         return str(self)
 
     @property
-    def min_value(self):
+    def min_value(self) -> date | ExtendedDate:
         """Minimum date needed to express the original string
 
         For example, the first day of the month for a date that specifies
@@ -946,7 +958,7 @@ class EMuDate(EMuType):
         raise ValueError(f"Invalid kind: {self.kind}")
 
     @property
-    def max_value(self):
+    def max_value(self) -> date | ExtendedDate:
         """Maximum date needed to express the original string
 
         For example, the last day of the month for a date that specifies
@@ -962,39 +974,39 @@ class EMuDate(EMuType):
         raise ValueError(f"Invalid kind: {self.kind}")
 
     @property
-    def comp(self):
+    def comp(self) -> tuple[int, int, int]:
         """Value to use for comparisons"""
         val = self.min_value
         return (val.year, val.month if val.month else 1, val.day if val.day else 1)
 
     @property
-    def min_comp(self):
+    def min_comp(self) -> tuple[int, int, int]:
         """Minimum value to use for comparisons"""
         val = self.min_value
         return (val.year, val.month, val.day)
 
     @property
-    def max_comp(self):
+    def max_comp(self) -> tuple[int, int, int]:
         """Maximum value to use for comparisons"""
         val = self.max_value
         return (val.year, val.month, val.day)
 
     @property
-    def year(self):
+    def year(self) -> int:
         """Year of the parsed date"""
         return self.value.year
 
     @property
-    def month(self):
+    def month(self) -> int:
         """Month of the parsed date"""
         return self.value.month if self.kind != "year" else None
 
     @property
-    def day(self):
+    def day(self) -> int:
         """Day of the parsed date"""
         return self.value.day if self.kind == "day" else None
 
-    def date(self):
+    def date(self) -> date:
         """Returns the datetime.date corresponding to this object
 
         Included to allow instances of this class to play well with functions that
@@ -1010,7 +1022,7 @@ class EMuDate(EMuType):
         return self.value
 
     @staticmethod
-    def strptime(val, fmt):
+    def strptime(val: str, fmt: str) -> date | ExtendedDate:
         """Formats a string as a date
 
         Parameters
@@ -1056,6 +1068,7 @@ class EMuDate(EMuType):
                 except ValueError:
                     ymd.append(int(datetime.strptime(match.group(key), "%b").month))
 
+            # Handle AD and BC
             if ymd[0] is not None and ymd[0] > 0:
                 pattern = r"\b(A[\. ]*D\.?|B[\. ]*C[\. ]*(E\.?)?)\b"
                 ad_bc = re.search(pattern, val, flags=re.I)
@@ -1068,7 +1081,7 @@ class EMuDate(EMuType):
             EMuDate._validate_extended_date(ext_date)
             return ext_date
 
-    def _strftime(self, val, fmt=None):
+    def _strftime(self, val: str, fmt: str = None) -> str:
         """Formats date as a string
 
         Parameters
@@ -1118,7 +1131,7 @@ class EMuDate(EMuType):
             return date_str
 
     @staticmethod
-    def _validate_extended_date(val):
+    def _validate_extended_date(val: date | datetime | ExtendedDate | EMuDate) -> None:
         if val.month and (val.month < 1 or val.month > 12):
             raise ValueError(f"Month out of range: {val}")
         if val.day:
@@ -1127,7 +1140,7 @@ class EMuDate(EMuType):
 
 
 class EMuTime(EMuType):
-    def __init__(self, val, fmt=None):
+    def __init__(self, val: str | datetime.time, fmt: str = None):
         """Initialize an EMuTime object
 
         Parameters
@@ -1194,10 +1207,10 @@ class EMuTime(EMuType):
         # Enforce a consistent output format
         self.format = "%H:%M:%S" if "%S" in fmt else "%H:%M"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value.strftime(self.format)
 
-    def strftime(self, fmt=None):
+    def strftime(self, fmt: str = None) -> str:
         """Formats time as a string
 
         Parameters
@@ -1212,12 +1225,12 @@ class EMuTime(EMuType):
         """
         return self.value.strftime(fmt if fmt else self.format)
 
-    def to_datetime(self, date):
+    def to_datetime(self, dt: date) -> datetime:
         """Combines date and time into a single datetime
 
         Parameters
         ----------
-        date : datetime.date
+        dt : datetime.date
             date to use with time
 
         Returns
@@ -1225,29 +1238,29 @@ class EMuTime(EMuType):
         datetime.datetime
             combined datetime
         """
-        return EMuDate(date).to_datetime(self)
+        return EMuDate(dt).to_datetime(self)
 
     @property
-    def hour(self):
+    def hour(self) -> int:
         """Hour of the parsed time"""
         return self.value.hour
 
     @property
-    def minute(self):
+    def minute(self) -> int:
         """Minute of the parsed time"""
         return self.value.minute
 
     @property
-    def second(self):
+    def second(self) -> int:
         """Second of the parsed time"""
         return self.value.second
 
     @property
-    def microsecond(self):
+    def microsecond(self) -> int:
         """Microsecond of the parsed time"""
         return self.value.microsecond
 
     @property
-    def tzinfo(self):
+    def tzinfo(self) -> str:
         """Time zone info for the parsed time"""
         return self.value.tzinfo

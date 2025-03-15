@@ -1,17 +1,25 @@
 """Defines containers to read and write various EMu objects"""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import pickle
 import re
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import (
+    Callable,
+    Generator,
+    Hashable,
+    MutableMapping,
+    MutableSequence,
+)
 from ctypes import c_uint64
-from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 from pprint import pformat
 from textwrap import wrap
+from typing import Any
 from warnings import warn
 
 from lxml import etree
@@ -58,7 +66,7 @@ class EMuConfig(MutableMapping):
         list of classes to add the config object to
     """
 
-    def __init__(self, path=None):
+    def __init__(self, path: str = None):
         self.path = path
         self.title = "YAML configuration file for python xmu package"
         self.filename = ".xmurc"
@@ -124,33 +132,33 @@ class EMuConfig(MutableMapping):
         for cl in self.classes:
             cl.config = self
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}({pformat(self._config)})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Any:
         return self._config[key]
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key, val) -> None:
         self._config[key] = val
 
-    def __delitem__(self, key):
+    def __delitem__(self, key) -> None:
         del self._config[key]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._config)
 
-    def __iter__(self):
+    def __iter__(self) -> Generator:
         return iter(self._config)
 
-    def load_rcfile(self, path=None):
+    def load_rcfile(self, path: str = None) -> dict:
         """Loads a configuration file
 
         Parameters
         ----------
-        path : str
+        path : str, optional
             path to the rcfile. If not given, checks the current then home
             directory for the filename.
 
@@ -187,7 +195,7 @@ class EMuConfig(MutableMapping):
 
         return self._config
 
-    def save_rcfile(self, path=None, overwrite=False):
+    def save_rcfile(self, path: str = None, overwrite: bool = False) -> None:
         """Saves a configuration file
 
         Parameters
@@ -234,16 +242,16 @@ class EMuConfig(MutableMapping):
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(content))
 
-    def update(self, obj, path=None):
+    def update(self, obj: dict, path: list = None) -> None:
         """Recusrively updates configuration from dict
 
         Parameters
         ----------
-        obj : mixed
-            configuration object. Usually a dict, although the function itself
-            may pass a variety of object types.
-        path : list
-            path to the current item
+        obj : dict
+            configuration object. User should always supply a dict, although
+            the function itself may pass a variety of object types here.
+        path : list, optional
+            path to the current item. User should omit.
 
         Returns
         -------
@@ -373,6 +381,7 @@ class EMuSchema(dict):
                     self.config.setdefault("make_visible", []).append(f"{mod}.{field}")
             self.config["make_visible"] = sorted(set(self.config["make_visible"]))
 
+    def __getitem__(self, path) -> Any:
         path = _split_path(path)
         obj = super().__getitem__(path[0])
         try:
@@ -390,23 +399,23 @@ class EMuSchema(dict):
         return obj
 
     @property
-    def modules(self):
+    def modules(self) -> list[str]:
         """Gets the list of modules in the schema"""
         return sorted(self["Schema"].keys())
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         """Overrides the native get method to support paths
 
         Parameters
         ----------
-        key : mixed
+        key : str
             key to retrieve
-        default : mixed
+        default : Any, optional
            default value to return if key not found
 
         Returns
         -------
-        mixed
+        Any
             value for the key or default if not found
         """
         try:
@@ -414,13 +423,13 @@ class EMuSchema(dict):
         except KeyError:
             return default
 
-    def from_file(self, path):
+    def from_file(self, path: str) -> None:
         """Loads schema from a file, creating a JSON version if not found
 
         Parameters
         ----------
         path : str
-            path to a schema file
+            path to a schema filenumpy docstring returns
         """
         self.path = path
         path = os.path.splitext(path)[0]
@@ -442,7 +451,7 @@ class EMuSchema(dict):
 
             self.to_json(f"{path}.json")
 
-    def from_pl(self, path):
+    def from_pl(self, path: str) -> None:
         """Loads schema from an EMu schema.pl file
 
         Parameters
@@ -452,7 +461,7 @@ class EMuSchema(dict):
         """
         self.update(self._read_schema_pl(path))
 
-    def from_json(self, path):
+    def from_json(self, path: str) -> None:
         """Loads schema from JSON
 
         Parameters
@@ -463,7 +472,7 @@ class EMuSchema(dict):
         with open(path, encoding="utf-8") as f:
             self.update(json.load(f))
 
-    def to_json(self, path, **kwargs):
+    def to_json(self, path: str, **kwargs) -> None:
         """Saves schema to JSON
 
         Parameters
@@ -484,7 +493,7 @@ class EMuSchema(dict):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self, f, **params)
 
-    def iterfields(self):
+    def iterfields(self) -> Generator[str, str, dict]:
         """Iterates over all fields in the schema
 
         Yields
@@ -497,7 +506,7 @@ class EMuSchema(dict):
             for field, info in cols.items():
                 yield module, field, info
 
-    def define_group(self, module, fields):
+    def define_group(self, module: str, fields: list) -> None:
         """Maps a group definition to each member field
 
         Groups are read from a schema if possible but can also be defined manually.
@@ -508,8 +517,6 @@ class EMuSchema(dict):
             backend module name
         fields : list
             list of fields in the group
-        overwrite : bool
-            whether to overwrite an existing group
         """
         fields_ = {}
         for field in fields:
@@ -543,7 +550,7 @@ class EMuSchema(dict):
         _get_field_info.cache_clear()
 
     @staticmethod
-    def get_field_info(module, path, visible_only=None):
+    def get_field_info(module: str, path: str, visible_only: bool = None) -> dict:
         """Gets data about the field specified by a path
 
         Parameters
@@ -562,7 +569,7 @@ class EMuSchema(dict):
         """
         return _get_field_info(module, path, visible_only=visible_only)
 
-    def _read_schema_pl(self, path):
+    def _read_schema_pl(self, path: str) -> dict:
         """Reads an EMu schema file
 
         Parameters
@@ -628,7 +635,7 @@ class EMuSchema(dict):
 
         return schema
 
-    def _get_similar_keys(self, path):
+    def _get_similar_keys(self, path: str) -> list[str]:
         """Finds fields similar to the one at the end of the given path"""
         last = path[-1][:4]
         obj = super().__getitem__(path[0])
@@ -637,7 +644,7 @@ class EMuSchema(dict):
         return [k for k in obj if k.startswith(last)]
 
     @staticmethod
-    def _parse_value(val):
+    def _parse_value(val: str) -> str | list:
         """Parses strings, lists, and integers from perl file"""
         vals = val.strip("[]").split(",")
         try:
@@ -688,7 +695,12 @@ class EMuColumn(list):
     schema = None
 
     def __init__(
-        self, vals=None, module=None, field=None, dict_class=None, list_class=None
+        self,
+        vals: list = None,
+        module: str = None,
+        field: str = None,
+        dict_class: Callable = None,
+        list_class: Callable = None,
     ):
         self.module = module
         self.field = field
@@ -702,45 +714,50 @@ class EMuColumn(list):
         if vals:
             self.extend(vals)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"EMuColumn({super().__str__()})"
 
-    def __setitem__(self, i, val):
+    def __setitem__(self, i: int, val: Any) -> None:
         # Catch non-integer indices to avoid problems with coercing values
         if not isinstance(i, int):
             raise TypeError("list indices must be integers or slices, not str")
         super().__setitem__(i, _coerce_values(self, val))
 
-    def __add__(self, obj):
+    def __add__(self, obj: Any) -> EMuColumn:
         return self.__class__(
             super().__add__(obj), module=self.module, field=self.field
         )
 
-    def __iadd__(self, obj):
+    def __iadd__(self, obj: Any) -> EMuColumn:
         self.extend(obj)
         return self
 
-    def insert(self, i, val):
+    def insert(self, i: int, val: Any) -> None:
         super().insert(i, _coerce_values(self, val))
 
-    def append(self, val):
+    def append(self, val: Any) -> None:
         super().append(_coerce_values(self, val))
 
-    def extend(self, vals):
+    def extend(self, vals: list) -> None:
         super().extend([_coerce_values(self, v) for v in vals])
 
-    def copy(self):
+    def copy(self) -> "EMuColumn":
         """Overrides the native list.copy method to return an object of this class"""
         return pickle.loads(pickle.dumps(self))
 
-    def to_xml(self, root=None, kind=None, row_ids=None):
+    def to_xml(
+        self,
+        root: etree.Element | etree.SubElement = None,
+        kind: str = None,
+        row_ids: tuple = None,
+    ) -> etree.Element:
         """Converts column to XML formatted for EMu
 
         Normally called without specifying arguments.
 
         Parameters
         ----------
-        root : lxml.etree.Element or SubElement
+        root : lxml.etree.Element | lxml.etree.SubElement
             parent element in the XML tree
         kind : str
            kind of XML file. One of "import", "update", or "emu".
@@ -808,13 +825,13 @@ class EMuRow(MutableMapping):
 
     Parameters
     ----------
-    rec : XMuRecord
+    rec : EMuRecord
         the EMu record the grid is from
     path : str
         path to a field that is part of the grid
     index : int
         the index of the row
-    fill_value : mixed
+    fill_value : Any
         value used when deleting an item from the row
 
     Attributes
@@ -822,7 +839,7 @@ class EMuRow(MutableMapping):
     group : tuple
         names for all columns that are part of the parent grid, whether they appear
         in the current record or not
-    fill_value : mixed
+    fill_value : Any
         value used when deleting an item from the row
     """
 
@@ -838,7 +855,7 @@ class EMuRow(MutableMapping):
     #: :meta hide-value:
     schema = None
 
-    def __init__(self, rec, path, index, fill_value=None):
+    def __init__(self, rec: EMuRecord, path: str, index: int, fill_value: Any = None):
         module = _get_module(rec)
         self.group = tuple(
             self.schema.get_field_info(module, path).get("GroupFields", [])
@@ -854,7 +871,7 @@ class EMuRow(MutableMapping):
             rec = rec[path]
         self._rec = rec
 
-    def __str__(self):
+    def __str__(self) -> str:
         try:
             row = {c: self._rec[c][self.index] for c in self.columns}
         except IndexError:
@@ -863,27 +880,27 @@ class EMuRow(MutableMapping):
             )
         return f"{self.__class__.__name__}({str(row)})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def __iter__(self):
+    def __iter__(self) -> Generator:
         return iter(self.columns)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.columns)
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: Hashable, val: Any) -> None:
         self._rec[key][self.index] = val
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Hashable) -> Any:
         return self._rec[key][self.index]
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Hashable) -> Any:
         self[key] = self.fill_value
 
     @property
-    def columns(self):
-        """Lists columns in the row that exist in the record"""
+    def columns(self) -> list[str]:
+        """List of columns in the row that exist in the record"""
         cols = [c for c in self._rec if strip_mod(c) in set(self.group)]
         if (
             any((c.endswith(")") for c in cols))
@@ -893,11 +910,11 @@ class EMuRow(MutableMapping):
         return cols
 
     @property
-    def replace_mod(self):
-        """Returns the modifier needed to replace a cell in this row in an import"""
+    def replace_mod(self) -> str:
+        """Modifier needed to replace a cell in this row in an import"""
         return f"{self.index + 1}="
 
-    def row_id(self):
+    def row_id(self) -> str:
         """Calculates an identifier based on the index and content of a row"""
         val = str(self.index) + str(self)
         return c_uint64(hash(val)).value.to_bytes(8, "big").hex()
@@ -910,11 +927,11 @@ class EMuGrid(MutableSequence):
 
     Parameters
     ----------
-    rec : XMuRecord
+    rec : EMuRecord
         the EMu record the grid is from
     path : str
         path to a field that is part of the grid
-    fill_value : mixed
+    fill_value : Any
         value used when padding columns
     pad : bool
         whether to pad the columns to the same length
@@ -924,9 +941,10 @@ class EMuGrid(MutableSequence):
     group : tuple
         names for all columns that are part of this grid, whether they appear
         in the current record or not
-    fill_value : mixed
+    fill_value : Any
         value to use when padding the grid or deleting an item from an EMuRow
         object created from this grid
+    columns
     """
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
@@ -941,7 +959,7 @@ class EMuGrid(MutableSequence):
     #: :meta hide-value:
     schema = None
 
-    def __init__(self, rec, path, fill_value=None):
+    def __init__(self, rec: EMuRecord, path: str, fill_value: Any = None):
         module = _get_module(rec)
         self.group = tuple(
             self.schema.get_field_info(module, path).get("GroupFields", [])
@@ -956,23 +974,23 @@ class EMuGrid(MutableSequence):
             rec = rec[path]
         self._rec = rec
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}({list(self)})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def __iter__(self):
+    def __iter__(self) -> Generator:
         for i in range(len(self)):
             yield EMuRow(self._rec, self.columns[0], i, fill_value=self.fill_value)
 
-    def __len__(self):
+    def __len__(self) -> int:
         try:
             return max([len(self._rec[c]) for c in self.columns])
         except ValueError:
             return 0
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Hashable) -> Any:
         if isinstance(key, int):
             return list(self)[key]
 
@@ -1000,23 +1018,23 @@ class EMuGrid(MutableSequence):
 
         return self._rec[key]
 
-    def __setitem__(self, i, vals):
+    def __setitem__(self, *args) -> None:
         # Required by MutableSequence but does not make sense to implement
         raise NotImplementedError(
             "Cannot set items on an EMuGrid. Use the main EMuRecord object or"
             " an individual EMuRow instead."
         )
 
-    def __delitem__(self, i):
+    def __delitem__(self, i: int) -> None:
         for col in self.columns:
             del self._rec[col][i]
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return list(self) == list(other)
 
     @property
-    def columns(self):
-        """Lists columns in the grid that exist in the record"""
+    def columns(self) -> list[str]:
+        """List of columns in the grid that exist in the record"""
         cols = [c for c in self._rec if strip_mod(c) in set(self.group)]
         if (
             any((c.endswith(")") for c in cols))
@@ -1025,8 +1043,18 @@ class EMuGrid(MutableSequence):
             raise ValueError(f"Inconsistent modifier within grid: {cols}")
         return cols
 
-    def verify(self):
-        """Checks if any fields in the grid are missing from the record"""
+    def verify(self) -> None:
+        """Checks if any fields in the grid are missing from the record
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            if fields are missing
+        """
         missing = set(self.group) - set(self.columns)
         if missing:
             raise ValueError(
@@ -1035,17 +1063,17 @@ class EMuGrid(MutableSequence):
                 f" grid.add_columns().pad() to complete the grid."
             )
 
-    def insert(self, index, value):
+    def insert(self, *args) -> None:
         # Required by MutableSequence but does not make sense to implement
         raise NotImplementedError(
             "Cannot insert into an EMuGrid. Use the main EMuRecord object instead."
         )
 
-    def items(self):
+    def items(self) -> Generator:
         for col in self.columns:
             yield col, self._rec[col]
 
-    def add_columns(self, cols=None, fill_value=None):
+    def add_columns(self, cols: list = None, fill_value: Any = None) -> EMuGrid:
         """Adds missing columns to the grid
 
         Parameters
@@ -1053,9 +1081,9 @@ class EMuGrid(MutableSequence):
         cols : list-like
             columns to add. If not given, adds all columns in the group attribute
             that do not already appear in the record.
-        fill_value : mixed
+        fill_value : Any
             the value used to pad a column. Defaults to fill_value attribute
-            if not given.
+            of the instance if not given.
 
         Returns
         -------
@@ -1072,18 +1100,19 @@ class EMuGrid(MutableSequence):
             self._rec.setdefault(col, [fill_value for _ in range(len(self))])
         return self
 
-    def pad(self, fill_value=None):
+    def pad(self, fill_value: Any = None) -> EMuGrid:
         """Pads all columns in the table to the same length
 
         Parameters
         ----------
-        fill_value : mixed
+        fill_value : Any
             the value used to pad a column. Defaults to fill_value attribute
             if not given.
 
         Returns
         -------
-        self
+        EMuGrid
+            the instance of EMuGrid from which this method was called
         """
         if fill_value is None:
             fill_value = self.fill_value
@@ -1092,7 +1121,7 @@ class EMuGrid(MutableSequence):
             self._rec[col].extend([fill_value for _ in range(diff)])
         return self
 
-    def filter(self, field=None, where=None):
+    def filter(self, field: str = None, where: dict = None) -> list[Any]:
         """Filters the grid
 
         Parameters
@@ -1104,7 +1133,7 @@ class EMuGrid(MutableSequence):
 
         Returns
         -------
-        list
+        list[Any]
             list of matching rows or values
         """
         results = []
@@ -1113,7 +1142,7 @@ class EMuGrid(MutableSequence):
         return results
 
     @staticmethod
-    def _transform(val):
+    def _transform(val: Any) -> str:
         if not isinstance(val, (list, tuple)):
             val = [val]
         return "|".join([str(s) if s is not None else "" for s in val]).lower()
@@ -1124,15 +1153,15 @@ class EMuRecord(dict):
 
     Parameters
     ----------
-    rec : mapping or iterable
+    rec : str | dict
         record as a mapping or iterable
     module : str
         backend name of an EMu module
     field : str
         name of an EMu field
-    dict_class : EMuRecord
+    dict_class : Callable
         class to use for dicts
-    list_class : EMuColumn
+    list_class : Callable
         class to use for lists
 
     Attributes
@@ -1141,10 +1170,10 @@ class EMuRecord(dict):
         backend name of an EMu module
     field : str
         name of an EMu field
-    dict_class : EMuRecord
-        class to use for dicts
-    list_class : EMuColumn
-        class to use for lists
+    dict_class : Callable
+        class to use for dicts. Defaults to DEFAULT_RECORD constant if not provided.
+    list_class : Callable
+        class to use for lists. Defaults to DEFAULT_COLUMN constant if not provided.
     """
 
     #: EMuConfig : module-wide configuration parameters. Set automatically
@@ -1160,7 +1189,12 @@ class EMuRecord(dict):
     schema = None
 
     def __init__(
-        self, rec=None, module=None, field=None, dict_class=None, list_class=None
+        self,
+        rec: str | dict = None,
+        module: str = None,
+        field: str = None,
+        dict_class: Callable = None,
+        list_class: Callable = None,
     ):
         self.module = module
         self.field = field
@@ -1180,10 +1214,10 @@ class EMuRecord(dict):
                 rec = rec.copy()
             self.update(rec)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}({pformat(self)})"
 
-    def __getitem__(self, path):
+    def __getitem__(self, path: str | list | tuple) -> Any:
         path = _split_path(path)
         try:
             if len(path) > 1:
@@ -1217,20 +1251,20 @@ class EMuRecord(dict):
                 f"Path not found: {dotpath} (module={module}) (failed at {key})"
             ) from exc
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: Hashable, val: Any) -> None:
         # Catch a key containing illegal characters
         if not re.match(r"\w+$", strip_mod(key)):
             raise ValueError(f"Invalid key: {key} (module={_get_module(self)})")
         super().__setitem__(key, _coerce_values(self, val, key))
 
-    def get(self, key, default=None):
+    def get(self, key: Hashable, default: Any = None) -> Any:
         """Overrides the native dict.get method to map unrecognized terms"""
         try:
             return self[key]
         except KeyError:
             return default
 
-    def setdefault(self, key, val):
+    def setdefault(self, key: Hashable, val: Any) -> Any:
         """Overrides the native dict.setdefault method to use the subclass setter"""
         try:
             return self[key]
@@ -1238,16 +1272,16 @@ class EMuRecord(dict):
             self[key] = val
             return self[key]
 
-    def update(self, *args, **kwargs):
+    def update(self, *args, **kwargs) -> None:
         """Overrides the native dict.update method to use the subclass setter"""
         for key, val in dict(*args, **kwargs).items():
             self[key] = val
 
-    def copy(self):
+    def copy(self) -> EMuRecord:
         """Overrides the native dict.copy method to return an object of this class"""
         return pickle.loads(pickle.dumps(self))
 
-    def json(self, **kwargs):
+    def json(self, **kwargs) -> str:
         """Converts record to JSON
 
         Parameters
@@ -1264,7 +1298,7 @@ class EMuRecord(dict):
         kwargs.setdefault("ensure_ascii", False)
         return json.dumps(dict(self), **kwargs)
 
-    def grid(self, field, **kwargs):
+    def grid(self, field: str, **kwargs) -> EMuGrid:
         """Returns the EMuGrid object containing the given field
 
         Parameters
@@ -1281,14 +1315,16 @@ class EMuRecord(dict):
         """
         return EMuGrid(self, field, **kwargs)
 
-    def to_xml(self, root=None, kind=None):
+    def to_xml(
+        self, root: etree.Element | etree.SubElement = None, kind: str = None
+    ) -> etree.Element:
         """Converts record to XML formatted for EMu
 
         Normally called without specifying arguments.
 
         Parameters
         ----------
-        root : lxml.etree.Element or SubElement
+        root : lxml.etree.Element or lxml.etree.SubElement
             parent element in the XML tree
         kind : str
            kind of XML file. One of "import", "update", or "emu". If not
@@ -1390,15 +1426,15 @@ class EMuRecord(dict):
 class EMuEncoder(json.JSONEncoder):
     """Encodes objects using EMuRecord and EMuColumn"""
 
-    def default(self, obj):
-        if isinstance(obj, dict):
-            return dict(obj)
-        elif isinstance(obj, list):
-            return list(obj)
-        return str(obj)
+    def default(self, o: Any) -> str:
+        if isinstance(o, dict):
+            return dict(o)
+        elif isinstance(o, list):
+            return list(o)
+        return str(o)
 
 
-def _coerce_values(parent, child, key=None):
+def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -> Any:
     """Coerces child containers and values to specific classes"""
 
     # Pickled objects are missing the instance attributes required to
@@ -1421,6 +1457,12 @@ def _coerce_values(parent, child, key=None):
         list_class = parent.list_class
         field = parent.field
         module = parent.module
+
+    else:
+        dict_class = None
+        list_class = None
+        field = None
+        module = None
 
     # Validate field if schema has been loaded
     field_info = None
@@ -1551,7 +1593,9 @@ def _coerce_values(parent, child, key=None):
 
 
 @lru_cache(maxsize=None)
-def _get_field_info(module, path, visible_only=None):
+def _get_field_info(
+    module: str, path: str | list[str], visible_only: bool = None
+) -> dict:
     """Gets field info from a schema for a given module and path
 
     Moved outside of EMuSchema to allow use of lru_cache.
@@ -1596,7 +1640,7 @@ def _get_field_info(module, path, visible_only=None):
     return obj
 
 
-def _get_module(obj, field=None):
+def _get_module(obj: EMuRecord | EMuColumn, field: str = None) -> str:
     """Gets module name"""
     if field is None:
         field = obj.field
@@ -1605,12 +1649,12 @@ def _get_module(obj, field=None):
     return obj.module
 
 
-def _is_not_blank(val):
+def _is_not_blank(val: Any) -> bool:
     """Tests if value is not blank"""
     return val or val == 0
 
 
-def _split_path(path):
+def _split_path(path: str) -> tuple[str]:
     """Splits path into segments"""
     if isinstance(path, tuple):
         return path

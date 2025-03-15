@@ -1,5 +1,7 @@
 """Defines objects used to read and write XML for Axiell EMu"""
 
+from __future__ import annotations
+
 import csv
 import datetime as dt
 import glob
@@ -13,7 +15,10 @@ import sys
 import tempfile
 import time
 import zipfile
+from collections.abc import Callable, Generator
 from pathlib import Path
+from typing import Any
+from warnings import warn
 
 from joblib import Parallel, delayed
 from lxml import etree
@@ -29,16 +34,16 @@ class EMuReader:
 
     Parameters
     ----------
-    path : str or Path
+    path : str | Path
         path to a file or directory
     json_path : str or Path
         path to a JSON file used to cache records for faster reading
 
     Attributes
     ----------
-    path : str or Path
+    path : str | Path
         path to a file or directory
-    json_path : str or Path
+    json_path : str | Path
         path to a JSON file used to cache records for faster reading
     files : list
         list of file-like objects, each of which is an EMu XML file
@@ -58,7 +63,9 @@ class EMuReader:
     #: :meta hide-value:
     schema = None
 
-    def __init__(self, path, rec_class=dict, json_path=None):
+    def __init__(
+        self, path: str | Path, rec_class: Callable = dict, json_path: str | Path = None
+    ):
         self.path = str(path)
         self._rec_class = rec_class
         self.json_path = json_path
@@ -74,23 +81,23 @@ class EMuReader:
         self._notify_start = None
         self._notify_count = 0
 
-    def __iter__(self):
+    def __iter__(self) -> Generator:
         for rec in self.from_file():
             yield rec
 
-    def __len__(self):
+    def __len__(self) -> int:
         counts = self.counts()
         if isinstance(counts, int):
             return counts
         raise NotImplementedError("Not implemented when multiple source files provided")
 
     @property
-    def fields(self):
+    def fields(self) -> dict:
         if self._fields is None:
             self._fields = self._parse_file_schema()
         return self._fields
 
-    def from_file(self):
+    def from_file(self) -> Generator[dict]:
         """Reads data from file, using JSON if possible
 
         Yields
@@ -112,7 +119,7 @@ class EMuReader:
 
         return self.from_json()
 
-    def from_xml(self, start=0, limit=None):
+    def from_xml(self, start: int = 0, limit: int = None) -> Generator[dict]:
         """Reads data from XML
 
         Parameters
@@ -170,8 +177,11 @@ class EMuReader:
                 self.report_progress()
 
     def from_xml_parallel(
-        self, callback, num_parts=64, handle_repeated_keys="overwrite"
-    ):
+        self,
+        callback: Callable,
+        num_parts: int = 64,
+        handle_repeated_keys: str = "overwrite",
+    ) -> Any:
         """Reads data from XML in parallel
 
         Experimental. Works by creating temporary copies of the XML file, then reading from
@@ -192,7 +202,7 @@ class EMuReader:
 
         Yields
         ------
-        mixed
+        Any
             result of callback function combined across jobs. If dict, results are combined
             into a single dict. If list, results are combined into a single list. If another
             type, returns a list of results returned by the callback.
@@ -275,7 +285,7 @@ class EMuReader:
                 os.remove(tmp.name)
             shutil.rmtree(tmpdir)
 
-    def from_json(self, chunk_size=2097152):
+    def from_json(self, chunk_size: int = 2097152) -> Generator[dict]:
         """Reads data from JSON
 
         Parameters
@@ -327,7 +337,7 @@ class EMuReader:
         if self._job_start:
             self.report_progress()
 
-    def to_csv(self, path, **kwargs):
+    def to_csv(self, path: str, **kwargs) -> None:
         """Writes records in reader object to CSV
 
         Parameters
@@ -339,7 +349,7 @@ class EMuReader:
         """
         return write_csv(self, path, **kwargs)
 
-    def to_json(self, path=None, **kwargs):
+    def to_json(self, path: str = None, **kwargs) -> None:
         """Writes JSON version of XML to file
 
         Parameters
@@ -384,8 +394,15 @@ class EMuReader:
             os.remove(path)
             raise IOError("Conversion to JSON failed") from exc
 
-    def counts(self):
-        """Counts the number of records in each file"""
+    def counts(self) -> dict | int:
+        """Counts the number of records in each file
+
+        Returns
+        -------
+        dict | int
+            If one file, the number of records. Otherwise a dict of path: counts for
+            each file.
+        """
         counts = {}
         for filelike in self.files:
             with open(filelike.path, mode="r", encoding="utf8") as f:
@@ -393,8 +410,15 @@ class EMuReader:
                     counts[filelike.path] = len(re.findall(rb"\n  <tuple>", m.read()))
         return counts[list(counts)[0]] if len(counts) == 1 else counts
 
-    def verify_group(self, path, module=None):
+    def verify_group(self, path: str | list | tuple, module: str = None) -> None:
         """Verifies that all fields in a group are present in the export
+
+        Parameters
+        ----------
+        path: str
+            the path to one field in a group
+        module : str
+            the name of an EMu module
 
         Raises
         ------
@@ -408,7 +432,7 @@ class EMuReader:
         if missing:
             raise ValueError(f"Group including '{path}' is missing fields: {missing}")
 
-    def report_progress(self, by="time", at=5):
+    def report_progress(self, by: str = "time", at: int = 5) -> None:
         """Prints progress notification messages when reading a file
 
         Parameters
@@ -440,18 +464,19 @@ class EMuReader:
             )
             self._notify_start = time.time()
 
-    def _parse(self, xml):
+    def _parse(self, xml: etree.Element) -> dict:
         """Parses a record from XML
 
         Parameters
         ----------
-        xml : lxml.Element
+        xml : lxml.etree.Element
             XML representing a single record
 
         Returns
         -------
         dict
-           EMu record
+           EMu record as a dict. If `rec_class` was specified when creating the
+           EMuReader object, the record will use that class.
         """
         if self._rec_class != dict:
             dct = self._rec_class(module=self.module)
@@ -538,7 +563,7 @@ class EMuReader:
 
         return dct
 
-    def _get_files(self):
+    def _get_files(self) -> None:
         """Analyzes source files on self.path"""
         files = []
         zip_file = None
@@ -564,7 +589,7 @@ class EMuReader:
                     self.module = line.split("=", 1)[-1].strip('">\r\n')
                     break
 
-    def _load_schema(self):
+    def _load_schema(self) -> "EMuSchema":
         """Tries to load the schema based on the rec_class"""
         if self.schema is None:
             try:
@@ -576,13 +601,13 @@ class EMuReader:
                 schema = None
         return self.schema
 
-    def _parse_file_schema(self):
+    def _parse_file_schema(self) -> tuple[str]:
         """Parses top-level fields from header of EMu XML file
 
         Returns
         -------
-        list
-            list of top-level fields
+        tuple[str]
+            tuple with the top-level fields in the schema
         """
         fields = {}
         for filelike in self.files:
@@ -625,7 +650,7 @@ class FileLike:
 
     Parameters
     ----------
-    filelike : mixed
+    filelike : str | zipfile.ZipInfo
         either the path to an XML file or a ZipInfo object
     zip_file : zipfile.ZipFile
         if filelike is a ZipInfo object, the zip file containing that object
@@ -640,7 +665,9 @@ class FileLike:
         the zip file containing the ZipInfo object
     """
 
-    def __init__(self, filelike, zip_file=None):
+    def __init__(
+        self, filelike: str | zipfile.ZipInfo, zip_file: zipfile.ZipFile = None
+    ):
         self.path = None
         self.zip_info = None
         self.zip_file = None
@@ -650,18 +677,18 @@ class FileLike:
         else:
             self.path = os.path.realpath(filelike)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'<FileLike name="{self.filename}">'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         """Name of the file-like object"""
         return os.path.basename(self.path) if self.path else self.zip_info.filename
 
-    def open(self, mode="r", encoding=None):
+    def open(self, mode: str = "r", encoding: str = None):
         """Opens a file or ZipInfo object"""
         if not self.zip_info:
             return open(self.path, mode=mode, encoding=encoding)
@@ -670,7 +697,7 @@ class FileLike:
             return _ByteDecoder(stream, encoding)
         return stream
 
-    def getmtime(self):
+    def getmtime(self) -> float:
         """Returns last modification timestamp from a file or ZipInfo object"""
         try:
             return os.path.getmtime(self.path)
@@ -685,7 +712,7 @@ class _ByteDecoder:
         self._stream = stream
         self._encoding = encoding
 
-    def __iter__(self):
+    def __iter__(self) -> Generator:
         for line in self._stream:
             yield line.decode(self._encoding)
 
@@ -698,7 +725,7 @@ class _ByteDecoder:
         self._stream.close()
 
 
-def clean_xml(path, encoding="utf-8"):
+def clean_xml(path: str, encoding: str = "utf-8") -> Path:
     """Removes restricted characters from XML file
 
     Parameters
@@ -714,7 +741,7 @@ def clean_xml(path, encoding="utf-8"):
         path to clean XML file
     """
 
-    def _remove_restricted_chars(val):
+    def _remove_restricted_chars(val: str) -> str:
         # From https://stackoverflow.com/a/64570125
         illegal_unichrs = [
             (0x00, 0x08),
@@ -767,7 +794,7 @@ def clean_xml(path, encoding="utf-8"):
     return output
 
 
-def write_csv(records, path, **kwargs):
+def write_csv(records: list["EMuRecord"], path: str, **kwargs) -> None:
     """Writes records to CSV
 
     Parameters
@@ -807,7 +834,7 @@ def write_csv(records, path, **kwargs):
         writer.writerows(({k: r.get(k) for k in fieldnames} for r in flattened))
 
 
-def write_import(*args, **kwargs):
+def write_import(*args, **kwargs) -> None:
     """Writes records to an EMu import file
 
     Alias for write_xml()
@@ -815,7 +842,7 @@ def write_import(*args, **kwargs):
     return write_xml(*args, **kwargs)
 
 
-def write_xml(records, path, **kwargs):
+def write_xml(records, path, **kwargs) -> None:
     """Writes records to an EMu import file
 
     Parameters
@@ -843,12 +870,12 @@ def write_xml(records, path, **kwargs):
     )
 
 
-def write_group(records, path, irn=None, name=None):
+def write_group(records: str, path: str, irn: int = None, name: str = None) -> None:
     """Writes an import for the egroups module
 
     Parameters
     ----------
-    records : list
+    records : list[EMuRecord]
         list of EMuRecords, each of which specifies an irn
     path : str
         path to write the import file
