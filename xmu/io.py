@@ -474,6 +474,20 @@ class EMuReader:
                     if name is None:
                         name = ""
 
+                    # Field names for reverse attachments are based on the field
+                    # name in the linking module and may therefore not follow the
+                    # normal EMu naming conventions. These should always be
+                    # tables. Since some attachment fields are already tabs, this
+                    # adds the _tab suffix for consistency. Reverse attachment
+                    # fields must be explicitly defined in .xmurc.
+                    if child.tag == "table" and not is_tab(name):
+                        warn(
+                            f"Renaming reverse attachment field {repr(name)}"
+                            f" to {repr(name + '_tab')}. You must use the latter"
+                            f" value to access this field."
+                        )
+                        name += "_tab"
+
                     # Get field text
                     text = child.text
                     if text is not None:

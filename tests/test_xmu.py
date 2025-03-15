@@ -341,6 +341,7 @@ def config_file(schema_file):
         ]
     }
     config["lookup_no_autopopulate"] = ["emain.EmuLookupParent", "emain.EmuLookupChild"]
+    config["reverse_attachments"] = {"emain": {"EmuReverseAttachmentRef_tab": "eref"}}
     config.save_rcfile(".", overwrite=True)
     return ".xmurc"
 
@@ -382,6 +383,9 @@ def xml_file(output_dir):
       table           EmuNestedTable_nesttab_inner
         text short      EmuNestedTable
       end
+    end
+    table           EmuReverseAttachment        
+      integer         irn
     end
   end
 ?>
@@ -457,6 +461,14 @@ def xml_file(output_dir):
         </table>
       </tuple>
     </table>
+    <table name="EmuReverseAttachmentRef">
+      <tuple>
+        <atom name="irn">1234567</atom>
+      </tuple>
+      <tuple>
+        <atom name="irn">1234568</atom>
+      </tuple>
+    </table>
   </tuple>
 </table>
 """
@@ -490,6 +502,7 @@ def expected_rec():
         "EmuTableUngrouped_tab": ["Text"],
         "EmuRef_tab": [{}, {}, {"irn": "1000000", "EmuRefOnly": "Text"}],
         "EmuNestedTable_nesttab": [None, ["Text"]],
+        "EmuReverseAttachmentRef_tab": [{"irn": "1234567"}, {"irn": "1234568"}],
     }
 
 
@@ -500,12 +513,13 @@ def grid(rec):
 
 def test_config(config_file, output_dir):
     config = EMuConfig(config_file)
-    assert len(config) == 4
+    assert len(config) == 5
     assert [k for k in config] == [
         "schema_path",
         "groups",
         "make_visible",
         "lookup_no_autopopulate",
+        "reverse_attachments",
     ]
     assert config["schema_path"] == str(output_dir / "schema.pl")
     assert config["make_visible"] == []
@@ -588,6 +602,7 @@ def test_schema_iterfields(schema_file):
         ("emain", "EmuText"),
         ("emain", "EmuTime0"),
         ("emain", "irn"),
+        ("emain", "EmuReverseAttachmentRef_tab"),  # added at runtime
         ("eref", "EmuRefOnly"),
         ("eref", "EmuRefTable_tab"),
         ("eref", "irn"),
@@ -860,6 +875,7 @@ def test_parse_file_schema(output_dir):
         "EmuTableUngrouped_tab",
         "EmuRef_tab",
         "EmuNestedTable_nesttab",
+        "EmuReverseAttachment",
     )
 
 
@@ -1105,8 +1121,8 @@ def test_write_csv(xml_file, output_dir):
     reader.to_csv(path)
     with open(path, encoding="utf-8-sig", newline="") as f:
         assert f.read().splitlines() == [
-            "irn,EmuText,EmuInteger,EmuFloat,EmuLatitude,EmuLongitude,EmuRef.irn,EmuRef.EmuRefOnly,EmuDate0.1.EmuDate,EmuDate0.2.EmuDate,EmuDate0.3.EmuDate,EmuTime0.1.EmuTime,EmuTime0.2.EmuTime,EmuTime0.3.EmuTime,EmuTable_tab.1.EmuTable,EmuTable_tab.2.EmuTable,EmuTableUngrouped_tab.1.EmuTableUngrouped,EmuRef_tab.3.EmuRef.irn,EmuRef_tab.3.EmuRef.EmuRefOnly,EmuNestedTable_nesttab.1.EmuNestedTable,EmuNestedTable_nesttab.2.EmuNestedTable.1.2.EmuNestedTable",
-            "1000000,Text,1,1.0,45 30 15 N,-130 10 5 W,1000000,Text,1970-01-01,Jan 1970,1970,9:00,12:00,15:00,Text,Text,Text,1000000,Text,,Text",
+            "irn,EmuText,EmuInteger,EmuFloat,EmuLatitude,EmuLongitude,EmuRef.irn,EmuRef.EmuRefOnly,EmuDate0.1.EmuDate,EmuDate0.2.EmuDate,EmuDate0.3.EmuDate,EmuTime0.1.EmuTime,EmuTime0.2.EmuTime,EmuTime0.3.EmuTime,EmuTable_tab.1.EmuTable,EmuTable_tab.2.EmuTable,EmuTableUngrouped_tab.1.EmuTableUngrouped,EmuRef_tab.3.EmuRef.irn,EmuRef_tab.3.EmuRef.EmuRefOnly,EmuNestedTable_nesttab.1.EmuNestedTable,EmuNestedTable_nesttab.2.EmuNestedTable.1.2.EmuNestedTable,EmuReverseAttachmentRef_tab.1.EmuReverseAttachmentRef.irn,EmuReverseAttachmentRef_tab.2.EmuReverseAttachmentRef.irn",
+            "1000000,Text,1,1.0,45 30 15 N,-130 10 5 W,1000000,Text,1970-01-01,Jan 1970,1970,9:00,12:00,15:00,Text,Text,Text,1000000,Text,,Text,1234567,1234568",
         ]
 
 
@@ -1541,7 +1557,7 @@ def test_dtype_date_pad_year():
 
 def test_dtype_date_range_to_datetime():
     with pytest.raises(ValueError, match="Cannot convert range to datetime"):
-        EMuDate("Jan 1970").to_datetime(time="12:00")
+        EMuDate("Jan 1970").to_datetime("12:00")
 
 
 @pytest.mark.parametrize(
@@ -2002,13 +2018,13 @@ def test_mutability(kind, rec):
         "\u0007",
         "\u0008",
         # (0x0B, 0x0C)
-        "\u000B",
-        "\u000C",
+        "\u000b",
+        "\u000c",
         # (0x0E, 0x1F)
-        "\u000E",
-        "\u000F",
+        "\u000e",
+        "\u000f",
         # (0x7F, 0x84)
-        "\u007F",
+        "\u007f",
         "\u0080",
         "\u0081",
         "\u0082",
@@ -2019,12 +2035,12 @@ def test_mutability(kind, rec):
         "\u0087",
         "\u0088",
         "\u0089",
-        "\u008A",
-        "\u008B",
-        "\u008C",
-        "\u008D",
-        "\u008E",
-        "\u008F",
+        "\u008a",
+        "\u008b",
+        "\u008c",
+        "\u008d",
+        "\u008e",
+        "\u008f",
         "\u0090",
         "\u0091",
         "\u0092",
@@ -2035,32 +2051,32 @@ def test_mutability(kind, rec):
         "\u0097",
         "\u0098",
         "\u0099",
-        "\u009A",
-        "\u009B",
-        "\u009C",
-        "\u009D",
-        "\u009E",
-        "\u009F",
+        "\u009a",
+        "\u009b",
+        "\u009c",
+        "\u009d",
+        "\u009e",
+        "\u009f",
         # (0xFDD0, 0xFDDF)
-        "\uFDD0",
-        "\uFDD1",
-        "\uFDD2",
-        "\uFDD3",
-        "\uFDD4",
-        "\uFDD5",
-        "\uFDD6",
-        "\uFDD7",
-        "\uFDD8",
-        "\uFDD9",
-        "\uFDDA",
-        "\uFDDB",
-        "\uFDDC",
-        "\uFDDD",
-        "\uFDDE",
-        "\uFDDF",
+        "\ufdd0",
+        "\ufdd1",
+        "\ufdd2",
+        "\ufdd3",
+        "\ufdd4",
+        "\ufdd5",
+        "\ufdd6",
+        "\ufdd7",
+        "\ufdd8",
+        "\ufdd9",
+        "\ufdda",
+        "\ufddb",
+        "\ufddc",
+        "\ufddd",
+        "\ufdde",
+        "\ufddf",
         # (0xFFFE, 0xFFFF)
-        "\uFFFE",
-        "\uFFFF",
+        "\ufffe",
+        "\uffff",
     ],
 )
 def test_clean_xml(xml_file, output_dir, char):
@@ -2085,7 +2101,8 @@ def test_emuconfig_str(rec):
                                       'EmuTable_tab',
                                       'EmuRef_tab']}},
  'lookup_no_autopopulate': ['emain.EmuLookupParent', 'emain.EmuLookupChild'],
- 'make_visible': [],
+ 'make_visible': ['emain.EmuReverseAttachmentRef_tab'],
+ 'reverse_attachments': {'emain': {'EmuReverseAttachmentRef_tab': 'eref'}},
  'schema_path': None})"""
     )
 
@@ -2101,6 +2118,7 @@ def test_emurecord_str(rec):
  'EmuNestedTable_nesttab': [[], ['Text']],
  'EmuRef': {'EmuRefOnly': 'Text', 'irn': 1000000},
  'EmuRef_tab': [{}, {}, {'EmuRefOnly': 'Text', 'irn': 1000000}],
+ 'EmuReverseAttachmentRef_tab': [1234567, 1234568],
  'EmuTableUngrouped_tab': ['Text'],
  'EmuTable_tab': ['Text', 'Text'],
  'EmuText': 'Text',

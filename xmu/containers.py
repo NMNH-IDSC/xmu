@@ -106,6 +106,16 @@ class EMuConfig(MutableMapping):
                     " when filling a lookup hierarchy during import."
                 ),
             ),
+            "reverse_attachments": (
+                {},
+                (
+                    "Reverse attachments as {module: {other_field: other_module}}."
+                    " These are records that attach to the current record and can be"
+                    " included in a report using the Attach Module function in the"
+                    " field selection window. The field name is based on the attachment"
+                    " field in the other record and does not appear in the schema."
+                ),
+            ),
         }
 
         self.load_rcfile()
@@ -330,15 +340,39 @@ class EMuSchema(dict):
         EMuGrid.schema = self
         EMuRow.schema = self
 
-        # Add custom groups from config file. This needs to come after the
-        # assignment of the class attributes because _get_field_info() uses
-        # one of those to access the schema.
+        # Tweak the schema based on the config file
         if self.config is not None:
+            # Add custom groups from config file. This needs to come after the
+            # assignment of the class attributes because _get_field_info() uses
+            # one of those to access the schema.
             for module, groups in self.config["groups"].items():
                 for fields in groups.values():
-                    self.define_group(module, fields)
+                    try:
+                        self.define_group(module, fields)
+                    except KeyError as exc:
+                        warn(f"Could not define custom group: {str(exc)}")
 
-    def __getitem__(self, path):
+            # Add entries for reverse attachment fields to the schema
+            for mod, fields in self.config["reverse_attachments"].items():
+                for field, refmod in fields.items():
+                    # The field takes the name of the attachment field in the
+                    # linking record, which may not be tabular. Because attachment
+                    # fields are always tabular (that is, more than one record can
+                    # link to a given record), the field name is updated to use
+                    # EMu's tab suffix. This allows code elsewhere in this package
+                    # that relies on field names to work as expected.
+                    if not is_tab(field):
+                        field += "_tab"
+                    self["Schema"][mod]["columns"][field] = {
+                        "ColumnName": field,
+                        "DataKind": "dkTable",
+                        "RefKey": "irn",
+                        "RefPrompt": field.replace("Ref_", ""),
+                        "RefTable": refmod,
+                    }
+                    self.config.setdefault("make_visible", []).append(f"{mod}.{field}")
+            self.config["make_visible"] = sorted(set(self.config["make_visible"]))
+
         path = _split_path(path)
         obj = super().__getitem__(path[0])
         try:
