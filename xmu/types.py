@@ -779,9 +779,9 @@ class EMuDate(EMuType):
         if isinstance(val, tuple) and not isinstance(val, ExtendedDate):
             val = ExtendedDate(*val)
 
-        # Remove periods for parsing
+        # Remove periods and trailing hyphens before parsing
         if isinstance(val, str):
-            val = val.replace(".", "")
+            val = val.replace(".", "").rstrip("-")
 
         # Zero-pad two-to-three-digit years if no format is provided. EMu does
         # not zero-pad years less than 1000 during export, which trips up the
@@ -812,6 +812,7 @@ class EMuDate(EMuType):
             ("day", "%B %d %Y"),
             ("day", "%B %d, %Y"),
             ("month", "%B %Y"),
+            ("month", "%Y-%m"),
         ]
 
         if isinstance(val, EMuDate):
