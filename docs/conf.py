@@ -19,11 +19,11 @@ sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -----------------------------------------------------
 
 project = "xmu"
-copyright = "2022-2024, Adam Mansur"
+copyright = "2022-2025, Adam Mansur"
 author = "Adam Mansur"
 
 # The full version, including alpha/beta/rc tags
-release = "0.1b8"
+release = "0.1b9"
 
 
 # -- General configuration ---------------------------------------------------

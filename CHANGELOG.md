@@ -7,6 +7,19 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b9
+-----
+
+- Added support for Python 3.13 and removed support for 3.8 and 3.9
+- Added support for reverse attachment fields
+- Added `date()` method to EMuDate
+- Added `round()` method to EMuFloat
+- Added `rec_class` param to EMuReader
+- Added type hints to most objects and additional docstrings
+- Modified date parsing in `EMuDate` to handle additional formats
+- Renamed `query()` to `filter()` on `EMuGrid`
+- Fixed bug parsing certain coordinates with trailing zeroes
+
 0.1b8
 -----
 
