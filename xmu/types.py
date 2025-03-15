@@ -175,11 +175,15 @@ class EMuType:
 
     def __setattr__(self, attr, val):
         try:
-            getattr(self, attr)
+            existing = getattr(self, attr)
         except AttributeError:
             super().__setattr__(attr, val)
         else:
-            raise AttributeError("Cannot modify existing attribute")
+            if val != existing:
+                raise AttributeError(
+                    f"Cannot modify existing attribute ({attr}={repr(existing)},"
+                    f" tried to assign {repr(val)})"
+                )
 
     def __delattr__(self, attr):
         raise AttributeError("Cannot delete attribute")
