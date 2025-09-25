@@ -1157,15 +1157,15 @@ class EMuGrid(MutableSequence):
             self._rec[col].extend([fill_value for _ in range(diff)])
         return self
 
-    def filter(self, field: str = None, where: dict = None) -> list[Any]:
+    def filter(self, where: dict = None, field: str = None) -> list[Any]:
         """Filters the grid
 
         Parameters
         ----------
-        field : str
-            a specific column to return. If empty, the whole row is returned.
         where : dict
             the query as a dict. A row must match all criteria to be returned.
+        field : str
+            a specific column to return. If empty, the whole row is returned.
 
         Returns
         -------

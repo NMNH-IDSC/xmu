@@ -741,7 +741,7 @@ def test_empty_grid(rec):
 
 
 def test_grid_filter(grid):
-    results = grid.filter("EmuRef_tab", where={"EmuTable_tab": "Text"})
+    results = grid.filter(where={"EmuTable_tab": "Text"}, field="EmuRef_tab")
     assert results == [{}, {}]
 
 
