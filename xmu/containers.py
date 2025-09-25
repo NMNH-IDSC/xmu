@@ -953,6 +953,15 @@ class EMuRow(MutableMapping):
     def __len__(self) -> int:
         return len(self.columns)
 
+    def __bool__(self) -> bool:
+        for val in self.values():
+            # Empty attachments evaluate as false
+            if isinstance(val, dict):
+                val = val.get("irn", val)
+            if val:
+                return True
+        return False
+
     def __setitem__(self, key: Hashable, val: Any) -> None:
         self._rec[key][self.index] = val
 
