@@ -592,6 +592,27 @@ class EMuSchema(dict):
         )
 
     @staticmethod
+    def map_short_name(module: str, key: str) -> str:
+        """Maps a short column name to the full name
+
+        The short name omits either the tab suffix, ref suffix, or both. Short names
+        are used inside tables and by the EMu API.
+
+        Parameters
+        ----------
+        module : str
+            backend module name
+        key : str
+            the EMu field name
+
+        Returns
+        -------
+        str
+            The full column name
+        """
+        return _map_short_name(module, key)
+
+    @staticmethod
     def get_group_info(module: str, path: str | list[str]) -> dict:
         """Gets data about the field specified by a path
 
@@ -1726,6 +1747,27 @@ def _get_field_info(
         raise KeyError(f"{module}.{seg} appears in the schema but is not visible")
 
     return obj
+
+
+@cache
+def _map_short_name(module: str, key: str) -> str:
+    """Maps short column name to full name"""
+    key = strip_tab(key)
+    for suffix in (
+        "",
+        "_tab",
+        "0",
+        "Ref",
+        "Ref_tab",
+        "_nesttab",
+        "Ref_nesstab",
+    ):
+        try:
+            _get_field_info(module, key + suffix)
+            return key + suffix
+        except KeyError:
+            pass
+    _get_field_info(module, key)
 
 
 @cache
