@@ -703,7 +703,10 @@ class EMuLatitude(EMuCoord):
         fmt : str
             formatting string used to convert a float back to a string
         """
-        super().__init__(val, fmt)
+        try:
+            super().__init__(val, fmt)
+        except Exception as exc:
+            raise ValueError(f"Could not create EMuLatitude from {repr(val)}") from exc
 
 
 class EMuLongitude(EMuCoord):
@@ -728,7 +731,12 @@ class EMuLongitude(EMuCoord):
         fmt : str
             formatting string used to convert a float back to a string
         """
-        super().__init__(val, fmt)
+        try:
+            super().__init__(val, fmt)
+        except Exception as exc:
+            raise ValueError(
+                f"Could not create EMuLongtitude from {repr(val)}"
+            ) from exc
 
 
 class EMuDate(EMuType):
