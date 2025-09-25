@@ -1150,6 +1150,28 @@ class EMuGrid(MutableSequence):
             results.append(row[field] if field else row)
         return results
 
+    def sort(self, key: int | str | Callable, reverse: bool = False):
+        """Sorts the grid by a single field
+
+        Parameters
+        ----------
+        key : int | str | Callable
+            the key or function to use to sort the grid
+        reverse : bool
+            whether to sort the grid in reverse
+
+        Returns
+        -------
+        None
+        """
+        func = key if callable(key) else lambda r: r[key]
+        vals = {}
+        for row in sorted(list(self.pad()), key=func, reverse=reverse):
+            for key, val in list(row.items()):
+                vals.setdefault(key, []).append(val)
+        for key, vals in vals.items():
+            self._rec[key] = vals
+
     @staticmethod
     def _transform(val: Any) -> str:
         if not isinstance(val, (list, tuple)):

@@ -793,6 +793,30 @@ def test_grid_in_reference(rec):
     assert grid1 == grid2
 
 
+def test_grid_sort(rec):
+    rec = rec.copy()
+    grid = rec.grid("EmuDate0").pad()
+    grid.sort(key=lambda r: r["EmuDate0"], reverse=True)
+    assert grid[0] == {
+        "EmuDate0": EMuDate("1970-01-01"),
+        "EmuTable_tab": "Text",
+        "EmuRef_tab": {},
+        "EmuNestedTable_nesttab": [],
+    }
+    assert grid[1] == {
+        "EmuDate0": EMuDate("Jan 1970"),
+        "EmuTable_tab": "Text",
+        "EmuRef_tab": {},
+        "EmuNestedTable_nesttab": ["Text"],
+    }
+    assert grid[2] == {
+        "EmuDate0": EMuDate("1970"),
+        "EmuTable_tab": "",
+        "EmuRef_tab": {"irn": 1000000, "EmuRefOnly": "Text"},
+        "EmuNestedTable_nesttab": [],
+    }
+
+
 def test_grid_inconsistent_modifier():
     rec = EMuRecord(
         {"EmuDate0(+)": ["1970-01-01"], "EmuRef_tab": [1234567]}, module="emain"
