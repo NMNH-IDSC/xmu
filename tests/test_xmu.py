@@ -570,6 +570,7 @@ def test_schema_get(schema_file):
             "EmuTable_tab",
             "EmuRef_tab",
         ],
+        "GroupFieldsOrig": ["EmuDate0", "EmuRef_tab"],
     }
     assert schema.get("Schema.emain.columns.EmuInvalid") is None
 

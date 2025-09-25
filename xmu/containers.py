@@ -441,13 +441,22 @@ class EMuSchema(dict):
             # Map group definitions to fields prior to saving the JSON file
             EMuRecord.schema = self
             for module, data in self["Schema"].items():
-                for fields in data.get("groups", {}).values():
+                for key, fields in data.get("groups", {}).items():
                     try:
                         self.define_group(module, fields)
                     except KeyError as exc:
                         warn(
                             f"The schema file includes an invalid group: {module}, {fields} (exc={exc})"
                         )
+                    else:
+                        # Capture the original group defined by the schema, mapping
+                        # any view fields to the underlying reference field
+                        fields = list({_map_view(module, f): 1 for f in fields})
+                        data["groups"][key] = fields
+                        for field in fields:
+                            self.get_field_info(module, field)["GroupFieldsOrig"] = (
+                                fields[:]
+                            )
 
             self.to_json(f"{path}.json")
 
@@ -961,11 +970,11 @@ class EMuGrid(MutableSequence):
 
     def __init__(self, rec: EMuRecord, path: str, fill_value: Any = None):
         module = _get_module(rec)
-        self.group = tuple(
-            self.schema.get_field_info(module, path).get("GroupFields", [])
-        )
+        info = self.schema.get_field_info(module, path)
+        self.group = tuple(info.get("GroupFields", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
+        self.orig_group = tuple(info.get("GroupFieldsOrig", []))
         self.fill_value = fill_value
 
         # Use path to drill down to the correct parent record
