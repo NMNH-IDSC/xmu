@@ -513,13 +513,13 @@ def grid(rec):
 
 def test_config(config_file, output_dir):
     config = EMuConfig(config_file)
-    assert len(config) == 5
     assert [k for k in config] == [
         "schema_path",
         "groups",
         "make_visible",
         "lookup_no_autopopulate",
         "reverse_attachments",
+        "calculated_fields",
     ]
     assert config["schema_path"] == str(output_dir / "schema.pl")
     assert config["make_visible"] == []
@@ -2124,8 +2124,9 @@ def test_emuconfig_str(rec):
     config = rec.config
     config["schema_path"] = None
     assert (
-        repr(config)
-        == """EMuConfig({'groups': {'emain': {'EmuGrid_tab': ['EmuDate0',
+        str(config)
+        == """EMuConfig({'calculated_fields': {},
+ 'groups': {'emain': {'EmuGrid_tab': ['EmuDate0',
                                       'EmuNestedTable_nesttab',
                                       'EmuTable_tab',
                                       'EmuRef_tab']}},

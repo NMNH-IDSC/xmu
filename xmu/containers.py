@@ -15,6 +15,7 @@ from collections.abc import (
     MutableSequence,
 )
 from ctypes import c_uint64
+from itertools import chain
 from functools import cache
 from pathlib import Path
 from pprint import pformat
@@ -122,6 +123,14 @@ class EMuConfig(MutableMapping):
                     " included in a report using the Attach Module function in the"
                     " field selection window. The field name is based on the attachment"
                     " field in the other record and does not appear in the schema."
+                ),
+            ),
+            "calculated_fields": (
+                {},
+                (
+                    "Calculated fields as {module: {other_field: other_module}}."
+                    " These are unit conversions that appear in grids that can"
+                    " be omitted from imports."
                 ),
             ),
         }
@@ -350,6 +359,7 @@ class EMuSchema(dict):
 
         # Tweak the schema based on the config file
         if self.config is not None:
+
             # Add custom groups from config file. This needs to come after the
             # assignment of the class attributes because _get_field_info() uses
             # one of those to access the schema.
@@ -359,6 +369,12 @@ class EMuSchema(dict):
                         self.define_group(module, fields)
                     except KeyError as exc:
                         warn(f"Could not define custom group: {str(exc)}")
+
+            # Add calculated fields that should be omitted from prepends/appends
+            for module, groups in self.config["calculated_fields"].items():
+                groups = list(groups.values())
+                for field in chain.from_iterable(groups):
+                    self.get_field_info(module, field)["GroupCalculated"] = groups
 
             # Add entries for reverse attachment fields to the schema
             for mod, fields in self.config["reverse_attachments"].items():
@@ -975,6 +991,7 @@ class EMuGrid(MutableSequence):
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
         self.orig_group = tuple(info.get("GroupFieldsOrig", []))
+        self.calculated_fields = tuple(info.get("GroupCalculated", []))
         self.fill_value = fill_value
 
         # Use path to drill down to the correct parent record
@@ -1082,7 +1099,9 @@ class EMuGrid(MutableSequence):
         for col in self.columns:
             yield col, self._rec[col]
 
-    def add_columns(self, cols: list = None, fill_value: Any = None) -> EMuGrid:
+    def add_columns(
+        self, cols: list = None, fill_value: Any = None, omit_calculated: bool = False
+    ) -> EMuGrid:
         """Adds missing columns to the grid
 
         Parameters
@@ -1093,6 +1112,9 @@ class EMuGrid(MutableSequence):
         fill_value : Any
             the value used to pad a column. Defaults to fill_value attribute
             of the instance if not given.
+        omit_calculated : bool
+            whether to include calculated columns, for example, unit conversions.
+            Calcualted columns must be defined in the config file.
 
         Returns
         -------
@@ -1103,6 +1125,15 @@ class EMuGrid(MutableSequence):
         mod = get_mod(self.columns[0]) if self.columns else None
         if cols is None:
             cols = self.group
+            # If True, do not add calculated fields if any associated field is
+            # populated. This is used for prepends and appends in imports, which
+            # show inconsistent behavior when these fields are present but empty.
+            if omit_calculated:
+                for group in self.calculated_fields:
+                    rec = {k: v for k, v in self._rec.items() if strip_mod(k) in group}
+                    if any(rec.values()):
+                        cols = [c for c in cols if c not in group]
+                        print(cols)
         if mod:
             cols = [f"{c}({mod})" if not has_mod(c) else c for c in cols]
         for col in set(cols) - set(self.columns):
@@ -1394,7 +1425,7 @@ class EMuRecord(dict):
                     else:
                         # Include all columns when appending or prepending
                         if key.endswith(("(+)", "(-)")):
-                            grid.add_columns()
+                            grid.add_columns(omit_calculated=True)
                         grid.pad()
                         row_ids = [r.row_id() for r in grid]
                         for col in grid.columns:
