@@ -15,7 +15,7 @@ from collections.abc import (
     MutableSequence,
 )
 from ctypes import c_uint64
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from pprint import pformat
 from textwrap import wrap
@@ -1623,7 +1623,7 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
     return child
 
 
-@lru_cache(maxsize=None)
+@cache
 def _get_field_info(
     module: str, path: str | list[str], visible_only: bool = None
 ) -> dict:
