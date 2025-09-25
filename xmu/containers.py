@@ -1104,7 +1104,10 @@ class EMuGrid(MutableSequence):
             del self._rec[col][i]
 
     def __eq__(self, other: Any) -> bool:
-        return list(self) == list(other)
+        try:
+            return list(self) == list(other)
+        except TypeError:
+            return False
 
     @property
     def columns(self) -> list[str]:
