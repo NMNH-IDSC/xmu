@@ -591,6 +591,28 @@ class EMuSchema(dict):
             module, path, allow_hidden=allow_hidden, allow_views=allow_views
         )
 
+    @staticmethod
+    def get_group_info(module: str, path: str | list[str]) -> dict:
+        """Gets data about the field specified by a path
+
+        Parameters
+        ----------
+        module : str
+            backend module name
+        path : str
+            path to the field in EMu
+        allow_hidden : bool
+            whether to resolve fields that do not appear in the client
+        allow_views : bool
+            whether to resolve views
+
+        Returns
+        -------
+        dict
+            information about the field (names, data types, etc.)
+        """
+        return _get_group_info(module, path)
+
     def _read_schema_pl(self, path: str) -> dict:
         """Reads an EMu schema file
 
@@ -1704,6 +1726,24 @@ def _get_field_info(
         raise KeyError(f"{module}.{seg} appears in the schema but is not visible")
 
     return obj
+
+
+@cache
+def _get_group_info(module: str, path: str | list[str]) -> dict:
+    """Gets field info from a schema for a given module and path
+
+    Moved outside of EMuSchema to allow use of cache.
+    """
+    schema = EMuRecord.schema
+
+    segments = _split_path(path)
+    modules = [module]
+    for seg in segments[:-1]:
+        obj = schema[
+            ("Schema", modules[-1], "columns", strip_mod(seg).replace("_inner", ""))
+        ]
+        modules.append(obj.get("RefTable", modules[-1]))
+    return schema[("Schema", modules[-1], "groups", segments[-1])]
 
 
 def _get_module(obj: EMuRecord | EMuColumn, field: str = None) -> str:
