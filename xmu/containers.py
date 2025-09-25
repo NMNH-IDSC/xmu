@@ -330,9 +330,10 @@ class EMuSchema(dict):
         if self.config is None:
             EMuConfig()
 
-        # Disable both checks for the initial read
+        # Disable checks for the initial read
         self.visible_only = False
         self.validate_paths = False
+        self.allow_views = False
 
         if not args or kwargs:
             try:
@@ -346,9 +347,10 @@ class EMuSchema(dict):
         elif args or kwargs:
             super().__init__(*args, **kwargs)
 
-        # Enable both checks by default
+        # Set defaults for checks
         self.visible_only = True
         self.validate_paths = True
+        self.allow_views = False
 
         # Set schema parameter on all classes
         EMuReader.schema = self
@@ -543,25 +545,14 @@ class EMuSchema(dict):
         fields : list
             list of fields in the group
         """
-        fields_ = {}
-        for field in fields:
-            try:
-                info = self.get_field_info(module, field)
-            except KeyError as exc:
-                if "is a view of the data in" not in str(exc):
-                    raise
-                # Map views to the attachment field
-                field = str(exc).split(" ")[-1].strip("'")
-            else:
-                field = info.get("RefLink", field)
-            fields_[field] = 1
 
-        fields = list(fields_)
+        fields = list({_map_view(module, f): 1 for f in fields})
         for field in fields[:]:
             # Combine groups that share one or more fields
             info = self.get_field_info(module, field)
             fields_ = info.get("GroupFields", [])
             if fields_:
+                # Update each group so that they contain the same fields
                 a = set(fields)
                 b = set(fields_)
                 if not (a.issubset(b) or b.issubset(a)):
@@ -575,7 +566,9 @@ class EMuSchema(dict):
         _get_field_info.cache_clear()
 
     @staticmethod
-    def get_field_info(module: str, path: str, visible_only: bool = None) -> dict:
+    def get_field_info(
+        module: str, path: str, allow_hidden: bool = None, allow_views: bool = None
+    ) -> dict:
         """Gets data about the field specified by a path
 
         Parameters
@@ -584,15 +577,19 @@ class EMuSchema(dict):
             backend module name
         path : str
             path to the field in EMu
-        visible_only : bool
+        allow_hidden : bool
             whether to resolve fields that do not appear in the client
+        allow_views : bool
+            whether to resolve views
 
         Returns
         -------
         dict
             information about the field (names, data types, etc.)
         """
-        return _get_field_info(module, path, visible_only=visible_only)
+        return _get_field_info(
+            module, path, allow_hidden=allow_hidden, allow_views=allow_views
+        )
 
     def _read_schema_pl(self, path: str) -> dict:
         """Reads an EMu schema file
@@ -882,9 +879,8 @@ class EMuRow(MutableMapping):
 
     def __init__(self, rec: EMuRecord, path: str, index: int, fill_value: Any = None):
         module = _get_module(rec)
-        self.group = tuple(
-            self.schema.get_field_info(module, path).get("GroupFields", [])
-        )
+        info = self.schema.get_field_info(module, path)
+        self.group = tuple(info.get("GroupFields", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
         self.fill_value = fill_value
@@ -1656,16 +1652,22 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
 
 @cache
 def _get_field_info(
-    module: str, path: str | list[str], visible_only: bool = None
+    module: str,
+    path: str | list[str],
+    allow_hidden: bool = None,
+    allow_views: bool = None,
 ) -> dict:
     """Gets field info from a schema for a given module and path
 
-    Moved outside of EMuSchema to allow use of lru_cache.
+    Moved outside of EMuSchema to allow use of cache.
     """
     schema = EMuRecord.schema
 
-    if visible_only is None:
-        visible_only = schema.visible_only
+    if allow_hidden is None:
+        allow_hidden = not schema.visible_only
+
+    if allow_views is None:
+        allow_views = schema.allow_views
 
     segments = _split_path(path)
     modules = [module]
@@ -1676,24 +1678,26 @@ def _get_field_info(
         modules.append(obj.get("RefTable", modules[-1]))
 
     # Views are data from a single attachment that appear in multiple fields in
-    # the linking module. They should not be read or written to.
+    # the linking module. They should not be written to but can be referenced in
+    # field help.
     try:
         is_view = obj["RefLink"] != obj["ColumnName"]
     except KeyError:
         pass
     else:
-        if is_view:
+        if is_view and not allow_views:
             # NOTE: The content of this error message is used in define_group()
             raise KeyError(
-                f"{module}.{seg} is a view of the data in {obj['RefLink']}. Access"
-                f" that data through the main attachment field instead."
+                f"{repr(module + '.' + seg)} is a view of the data in"
+                f" {repr(obj['RefLink'])}. Access that data through the"
+                f" main attachment field instead."
             )
 
     # The schema may include fields that are not visible in the client. ItemName
     # *appears* to be populated only for fields that actually appear in the client.
     module = modules[-2]
     if (
-        visible_only
+        not allow_hidden
         and not obj.get("ItemName")
         and not ".".join([module] + list(segments)) in EMuRecord.config["make_visible"]
     ):
@@ -1714,6 +1718,27 @@ def _get_module(obj: EMuRecord | EMuColumn, field: str = None) -> str:
 def _is_not_blank(val: Any) -> bool:
     """Tests if value is not blank"""
     return val or val == 0
+
+
+def _map_view(module: str, field: str) -> str:
+    """Maps views to reference fields as needed"""
+    try:
+        return _get_field_info(module, field).get("RefLink", field)
+    except KeyError as exc:
+        # Use the view error message
+        if "is a view of the data in" not in str(exc):
+            raise
+        # Map view to attachment field, then test to catch parsing errors
+        try:
+            field = re.search(r"'([A-Za-z0-9_]+)'", str(exc)).group(1)
+            _get_field_info(module, field)
+        except:
+            raise ValueError(
+                f"Failed to map view to a valid attachment field."
+                f" Parsed field name {repr(field)} from {str(exc)}"
+            )
+        else:
+            return field
 
 
 def _split_path(path: str) -> tuple[str]:
