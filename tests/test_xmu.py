@@ -1778,7 +1778,7 @@ def test_dtype_coord_invalid(coord_class):
     "coord_class,val", [(EMuLatitude, "90.1"), (EMuLongitude, "-180.1")]
 )
 def test_dtype_coord_out_of_bounds(coord_class, val):
-    with pytest.raises(ValueError, match=r"Coordinate out of bounds"):
+    with pytest.raises(ValueError, match=rf"Could not create {coord_class.__name__}"):
         coord_class(val)
 
 
@@ -1793,17 +1793,17 @@ def test_dtype_coord_to_dec_too_precise():
 
 
 def test_dtype_coord_unsigned():
-    with pytest.raises(ValueError, match=r"Could not parse as EMuLatitude"):
+    with pytest.raises(ValueError, match=r"Could not create EMuLatitude"):
         EMuLatitude("45 30 15")
 
 
 def test_dtype_coord_invalid_minutes():
-    with pytest.raises(ValueError, match=r"Invalid minutes"):
+    with pytest.raises(ValueError, match=r"Could not create EMuLongitude"):
         EMuLongitude("45 90 15 E")
 
 
 def test_dtype_coord_invalid_seconds():
-    with pytest.raises(ValueError, match=r"Invalid seconds"):
+    with pytest.raises(ValueError, match=r"Could not create EMuLongitude"):
         EMuLongitude("45 30 75 E")
 
 

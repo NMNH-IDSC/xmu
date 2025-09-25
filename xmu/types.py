@@ -734,9 +734,7 @@ class EMuLongitude(EMuCoord):
         try:
             super().__init__(val, fmt)
         except Exception as exc:
-            raise ValueError(
-                f"Could not create EMuLongtitude from {repr(val)}"
-            ) from exc
+            raise ValueError(f"Could not create EMuLongitude from {repr(val)}") from exc
 
 
 class EMuDate(EMuType):
