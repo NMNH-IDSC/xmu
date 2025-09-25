@@ -518,8 +518,8 @@ class EMuReader:
                     if text is not None:
                         text = text.strip()
 
-                    # Add an atomic field
-                    if child.tag == "atom":
+                    # Add an atomic field. Omit empty irns.
+                    if child.tag == "atom" and (text or name != "irn"):
                         try:
                             obj[name] = text
                         except TypeError:
@@ -619,7 +619,7 @@ class EMuReader:
                         break
                 content = "".join(lines)
 
-            tables = []
+            containers = []
             for line in (
                 re.search(r"<?schema\s+(.*?)\?>", content, flags=re.DOTALL)
                 .group(1)
@@ -630,12 +630,12 @@ class EMuReader:
                     dtype, field = [s.strip() for s in line.rsplit(" ", 1)]
                 except ValueError:
                     dtype = None
-                    tables.pop()
+                    containers.pop()
                 else:
-                    if dtype == "table":
-                        tables.append(field)
+                    if dtype in ("table", "tuple"):
+                        containers.append(field)
                     else:
-                        segments = tables[1:] + [field]
+                        segments = containers[1:] + [field]
                         segments = [
                             s
                             for i, s in enumerate(segments)
