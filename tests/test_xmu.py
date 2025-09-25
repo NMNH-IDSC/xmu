@@ -1795,7 +1795,7 @@ def test_dtype_coord_trailing_zero():
 
 @pytest.mark.parametrize("coord_class", [EMuLatitude, EMuLongitude])
 def test_dtype_coord_invalid(coord_class):
-    with pytest.raises(ValueError, match=r"Invalid coordinate"):
+    with pytest.raises(ValueError, match=rf"Could not create {coord_class.__name__}"):
         coord_class("45 30 15 7.5 N")
 
 
