@@ -78,7 +78,7 @@ records:
 
 ``` python
 def callback(path):
-    reader = EMuReader("xmldata.xml")
+    reader = EMuReader(path)
     results = {}
     for rec in reader:
         rec = EMuRecord(rec, module=reader.module)
