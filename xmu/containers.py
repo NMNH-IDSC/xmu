@@ -26,6 +26,7 @@ from warnings import warn
 from lxml import etree
 import yaml
 
+from .api import EMuAPI
 from .io import EMuReader
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
 from .utils import (
@@ -358,6 +359,7 @@ class EMuSchema(dict):
         EMuColumn.schema = self
         EMuGrid.schema = self
         EMuRow.schema = self
+        EMuAPI.schema = self
 
         # Tweak the schema based on the config file
         if self.config is not None:

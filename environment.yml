@@ -8,3 +8,4 @@ dependencies:
 - joblib
 - lxml
 - pyyaml
+- requests
