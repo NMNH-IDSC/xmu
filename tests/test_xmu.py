@@ -24,14 +24,18 @@ from xmu import (
     EMuType,
     clean_xml,
     get_mod,
+    get_ref,
+    get_tab,
     has_mod,
     is_nesttab,
     is_nesttab_inner,
     is_ref,
     is_ref_tab,
     is_tab,
+    split_field,
     strip_mod,
     strip_tab,
+    to_ref,
     write_xml,
     write_group,
 )
@@ -1983,6 +1987,85 @@ def test_mods(field):
 def test_mod_on_atom():
     with pytest.raises(ValueError, match=r"Update modifier found on an atomic"):
         has_mod("AtomField(+)")
+
+
+@pytest.mark.parametrize(
+    "field,ref",
+    [
+        ("TableField", ""),
+        ("TableFieldRefLocal", "RefLocal"),
+        ("TableFieldRef_nesttab", "Ref"),
+        ("TableFieldRef_nesttab_inner", "Ref"),
+        ("TableFieldRef_tab", "Ref"),
+    ],
+)
+def test_get_ref(field, ref):
+    assert get_ref(field) == ref
+
+
+@pytest.mark.parametrize(
+    "field,expected",
+    [
+        ("TableField", ""),
+        ("TableField0", "0"),
+        ("TableField_nesttab", "_nesttab"),
+        ("TableField_nesttab_inner", "_nesttab_inner"),
+        ("TableFieldRef_tab", "_tab"),
+        ("TableField_tab", "_tab"),
+    ],
+)
+def test_get_tab(field, expected):
+    assert get_tab(field) == expected
+
+
+@pytest.mark.parametrize(
+    "field,expected",
+    [
+        ("EmuField", "EmuFieldRef"),
+        ("EmuField_nesttab", "EmuFieldRef_nesttab"),
+        ("EmuField_tab", "EmuFieldRef_tab"),
+        ("EmuFieldRef", "EmuFieldRef"),
+        ("EmuFieldRef_nesttab", "EmuFieldRef_nesttab"),
+        ("EmuFieldRef_tab", "EmuFieldRef_tab"),
+    ],
+)
+def test_to_ref(field, expected):
+    assert to_ref(field) == expected
+
+
+# field, tab, ref, mod
+
+
+@pytest.mark.parametrize(
+    "field,expected",
+    [
+        ("EmuField", ("EmuField", "", "", "")),
+        ("EmuField0", ("EmuField", "", "0", "")),
+        ("EmuField_nesttab", ("EmuField", "", "_nesttab", "")),
+        ("EmuField_nesttab_inner", ("EmuField", "", "_nesttab_inner", "")),
+        ("EmuField_tab", ("EmuField", "", "_tab", "")),
+        ("EmuFieldRef", ("EmuField", "Ref", "", "")),
+        ("EmuFieldRef_nesttab", ("EmuField", "Ref", "_nesttab", "")),
+        ("EmuFieldRef_tab", ("EmuField", "Ref", "_tab", "")),
+        ("EmuField_nesttab(+)", ("EmuField", "", "_nesttab", "(+)")),
+        ("EmuField_tab(+)", ("EmuField", "", "_tab", "(+)")),
+        ("EmuFieldRef_nesttab(-)", ("EmuField", "Ref", "_nesttab", "(-)")),
+        ("EmuFieldRef_tab(-)", ("EmuField", "Ref", "_tab", "(-)")),
+        ("EmuField_nesttab(1=)", ("EmuField", "", "_nesttab", "(1=)")),
+        ("EmuField_tab(1=)", ("EmuField", "", "_tab", "(1=)")),
+    ],
+)
+def test_split_field(field, expected):
+    assert split_field(field) == expected
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["TableField0", "TableField_nesttab_inner"],
+)
+def test_to_ref(field):
+    with pytest.raises(ValueError, match=r"Invalid reference"):
+        to_ref(field)
 
 
 def test_mod_invalid():

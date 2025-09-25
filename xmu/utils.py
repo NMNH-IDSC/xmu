@@ -131,6 +131,49 @@ def has_mod(field: str) -> bool:
 
 
 @cache
+def split_field(field: str) -> tuple[str]:
+    """Splits field into components
+
+    Parameters
+    ----------
+    field : str
+        field name
+
+    Returns
+    -------
+    tuple[str]
+        field, ref, tab, mod
+    """
+    mod = get_mod(field)
+    if mod:
+        mod = f"({mod})"
+    return (re.sub("Ref$", "", strip_tab(field)), get_ref(field), get_tab(field), mod)
+
+
+@cache
+def to_ref(field: str) -> str:
+    """Converts field to reference
+
+    Parameters
+    ----------
+    field : str
+        field name
+
+    Returns
+    -------
+    tuple
+        field name with reference signifier
+    """
+    orig = field
+    field, ref, tab, mod = split_field(field)
+    if tab in ("0", "_nesttab_inner"):
+        raise ValueError(f"Invalid reference: {orig}")
+    if not ref:
+        ref = "Ref"
+    return f"{field}{ref}{tab}({mod})".replace("()", "")
+
+
+@cache
 def strip_tab(field: str) -> str:
     """Strips table suffixes from a field name
 
@@ -162,6 +205,46 @@ def strip_mod(field: str) -> str:
         field name without an update modifier
     """
     return field.rsplit("(", 1)[0]
+
+
+@cache
+def get_ref(field: str) -> str:
+    """Gets the reference signifier from a field name
+
+    Parameters
+    ----------
+    field : str
+        field name
+
+    Returns
+    -------
+    str
+        a reference signifier if present, otherwise an empty string
+    """
+    try:
+        return re.search(REF_PATTERN, strip_tab(field)).group()
+    except AttributeError:
+        return ""
+
+
+@cache
+def get_tab(field: str) -> str:
+    """Gets the table signifier from a field name
+
+    Parameters
+    ----------
+    field : str
+        field name
+
+    Returns
+    -------
+    str
+        a table signifier if present, otherwise an empty string
+    """
+    try:
+        return re.search(TAB_PATTERN, strip_mod(field)).group()
+    except AttributeError:
+        return ""
 
 
 @cache

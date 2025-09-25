@@ -14,14 +14,18 @@ from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuTyp
 from .utils import (
     flatten,
     get_mod,
+    get_ref,
+    get_tab,
     has_mod,
     is_nesttab,
     is_nesttab_inner,
     is_ref,
     is_ref_tab,
     is_tab,
+    split_field,
     strip_mod,
     strip_tab,
+    to_ref,
 )
 
 __version__ = "0.1b9"
