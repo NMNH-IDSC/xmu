@@ -854,6 +854,9 @@ def write_xml(records, path, **kwargs) -> None:
     kwargs :
         any keyword argument accepted by the to_xml() method of the record class
     """
+    if not records:
+        raise ValueError("No records to write to XML file")
+
     root = etree.Element("table")
     root.set("name", records[0].module)
     root.addprevious(etree.Comment(" Data "))
