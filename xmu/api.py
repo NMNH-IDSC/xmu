@@ -48,11 +48,11 @@ class EMuAPI:
         url: str,
         username: str = None,
         password: str = None,
-        rec_class: Callable = dict,
+        parser: "EMuAPIParser" = None,
     ):
         self.base_url = url.rstrip("/") + "/"
         self.use_emu_syntax = True
-        self.rec_class = rec_class
+        self.parser = parser
 
         # Get token
         self._token = requests.post(
@@ -88,11 +88,16 @@ class EMuAPI:
         headers["X-HTTP-Method-Override"] = "GET"
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-        logger.debug(
-            f"Making GET request: {args[0]} (headers={headers}, params={kwargs})"
+        select = kwargs.pop("select", None)
+
+        redacted = re.sub(
+            "'Authorization': '.*?'", "'Authorization': '[REDACTED]'", str(kwargs)
         )
+        logger.debug(f"Making GET request: {args[0]} (params={redacted})")
         return EMuAPIResponse(
-            self.session.post(*args, **kwargs), api=self, rec_class=self.rec_class
+            self.session.post(*args, **kwargs),
+            api=self,
+            select=select,
         )
 
     def retrieve(self, module: str, irn: str | int, select: list[str] = None) -> None:
@@ -116,9 +121,7 @@ class EMuAPI:
         for part in [module, str(irn)]:
             url = urljoin(url, part).rstrip("/") + "/"
         params = self._prep_query(module=module, select=select)
-        resp = self.get(url.rstrip("/"), data=params)
-        resp.select = select
-        return resp
+        return self.get(url.rstrip("/"), data=params, select=select)
 
     def search(
         self,
@@ -163,11 +166,12 @@ class EMuAPI:
             limit=limit,
             cursor_type=cursor_type,
         )
-        resp = self.get(urljoin(self.base_url, module).rstrip("/"), data=params)
-        resp.select = select
-        return resp
+        return self.get(
+            urljoin(self.base_url, module).rstrip("/"), data=params, select=select
+        )
 
     def _prep_query(self, **kwargs):
+        """Format the query for the EMu API"""
 
         params = {}
 
@@ -190,35 +194,42 @@ class EMuAPI:
 
 
 class EMuAPIResponse:
+    """Wraps a response from the EMu API response"""
 
-    def __init__(self, response, api, rec_class):
+    def __init__(self, response, api, select=None):
         self._response = response
         self._api = api
-        self._rec_class = rec_class
-        self.select = None
+        self._select = select
 
     def __getattr__(self, attr):
         return getattr(self._response, attr)
 
+    def __len__(self):
+        return len(json.loads(self.headers["Next-Offsets"]))
+
     def __iter__(self):
         try:
-            # yield self.json()["data"]
-            rec = _parse_api(self.module, self.json()["data"])
+            rec = self.json()["data"]
+            if self._api.parser is not None:
+                rec = self._api.parser.parse(
+                    rec, module=resp.module, select=self._select
+                )
             yield rec
-            # if self._rec_class != dict:
-            #    rec = self._rec_class(rec, module=self.module)
-            # yield self.resolve_attachments(rec)
+        except json.JSONDecodeError:
+            raise ValueError(
+                f"Response cannot be decoded: {repr(self.text)} (status_code={self.status_code})"
+            )
         except KeyError:
             resp = self
             while True:
                 try:
                     for match in resp.json()["matches"]:
-                        # yield match["data"]
-                        rec = _parse_api(resp.module, match["data"])
+                        rec = match["data"]
+                        if self._api.parser is not None:
+                            rec = self._api.parser.parse(
+                                rec, module=resp.module, select=self._select
+                            )
                         yield rec
-                        # if resp._rec_class != dict:
-                        #    rec = resp._rec_class(rec, module=resp.module)
-                        # yield resp.resolve_attachments(rec)
                 except Exception as exc:
                     try:
                         raise ValueError(f"Could not parse match: {match}") from exc
@@ -234,7 +245,7 @@ class EMuAPIResponse:
 
     @property
     def module(self):
-        """The EMu module queried to get the response"""
+        """The EMu module queried to create the response"""
         try:
             return self.json()["id"].split("/")[-2]
         except KeyError:
@@ -246,7 +257,12 @@ class EMuAPIResponse:
         params = {}
         for param in self.request.body.split("&"):
             key, val = param.split("=", 1)
-            params.setdefault(key, []).append(json.loads(unquote_plus(val)))
+            val = unquote_plus(val)
+            try:
+                val = json.loads(val)
+            except json.JSONDecodeError:
+                pass
+            params.setdefault(key, []).append(val)
         return params
 
     def records(self):
@@ -255,7 +271,7 @@ class EMuAPIResponse:
         Returns
         -------
         dict
-            maps irns to records
+            dict that maps irns to records
         """
         return {r["irn"]: r for r in self}
 
@@ -279,19 +295,50 @@ class EMuAPIResponse:
         EMuAPIResponse
             the result from the next page
         """
-        limit = int(self.params.get(b"limit", [10])[0])
-        if len(json.loads(self.headers["Next-Offsets"])) % limit:
-            raise ValueError("Last page")
+        limit = int(self.params.get("limit", [10])[0])
+        if len(self) != limit:
+            raise ValueError(f"Last page (num_results={len(self)}, limit={limit})")
         return self._api.get(
             self.url,
             data=self.request.body,
             headers={"Next-Search": self.headers["Next-Search"]},
         )
 
-    def resolve_attachments(self, rec):
-        """Resolves attached records
+
+class EMuAPIParser:
+    """Parses responses from the EMu API"""
+
+    def __init__(self, rec_class=dict):
+        self._rec_class = rec_class
+
+    def parse(self, rec, module, select=None):
+        """Parses a record returned by the EMu API
 
         Only attachments mapped in the original select parameter are resolved.
+
+        Parameters
+        ----------
+        rec : dict
+            a record retrieved from the EMu API
+        select : dict
+            the fields to return
+
+        Returns
+        -------
+        dict
+            the record with all attachments resolved
+        """
+        parsed = _parse_api(rec, module)
+        if self._rec_class != dict:
+            parsed = self._rec_class(parsed, module=module)
+        if select:
+            parsed = self.resolve_attachments(parsed, select=select)
+        return parsed
+
+    def resolve_attachments(self, rec, select=None):
+        """Resolves attachments in a record returned by the EMu API
+
+        Only attachments mapped in the select parameter are resolved.
 
         Parameters
         ----------
@@ -303,13 +350,11 @@ class EMuAPIResponse:
         dict
             the record with all attachments resolved
         """
-        if not self.select:
-            return rec
         for key, val in rec.items():
             if is_ref(key):
                 field_info = self._api.schema.get_field_info(self.module, key)
                 try:
-                    select = self.select[key]
+                    select_ = select[key]
                 except (KeyError, TypeError):
                     pass
                 else:
@@ -317,12 +362,12 @@ class EMuAPIResponse:
                         for i, val in enumerate(val):
                             if val:
                                 val = self._api.retrieve(
-                                    field_info["RefTable"], val, select=select
+                                    field_info["RefTable"], val, select=select_
                                 ).first()
                             rec[key][i] = val
                     else:
                         rec[key] = self._api.retrieve(
-                            field_info["RefTable"], val, select=select
+                            field_info["RefTable"], val, select=select_
                         ).first()
         return rec
 
@@ -1017,7 +1062,7 @@ def _val_to_query(
     return and_(clauses) if len(clauses) > 1 else clauses[0]
 
 
-def _parse_api(module, val, key=None, mapped=None):
+def _parse_api(val, module, key=None, mapped=None):
     """Parses API response to remove field groupings"""
 
     if mapped is None:
@@ -1032,7 +1077,7 @@ def _parse_api(module, val, key=None, mapped=None):
     # Iterate dicts
     if isinstance(val, dict):
         for key, val in val.items():
-            _parse_api(module, val, key, mapped)
+            _parse_api(val, module, key, mapped)
 
     # Map tables
     elif key.endswith("_grp"):
@@ -1049,7 +1094,7 @@ def _parse_api(module, val, key=None, mapped=None):
 
         for key, vals in grid.items():
             if any(vals):
-                _parse_api(module, vals, key, mapped)
+                _parse_api(vals, module, key, mapped)
 
     # Map nested tables
     elif key.endswith("_subgrp"):
@@ -1071,7 +1116,7 @@ def _parse_api(module, val, key=None, mapped=None):
 
         for key, vals in grid.items():
             if any(vals):
-                _parse_api(module, vals, key, mapped)
+                _parse_api(vals, module, key, mapped)
 
     # Simplify IRNs
     elif val and key == "irn" or is_ref(key):
