@@ -961,17 +961,19 @@ def _parse_api(module, val, key=None, mapped=None):
     elif key.endswith("_subgrp"):
         keys = []
         for row in val:
-            for inner_row in row:
-                keys.extend(inner_row)
+            if row:
+                for inner_row in row:
+                    keys.extend(inner_row)
         keys = set(keys)
 
         grid = {k: [] for k in keys}
         for row in val:
             for val in grid.values():
                 val.append([])
-            for inner_row in row:
-                for key in keys:
-                    grid[key][-1].append(inner_row.get(key))
+            if row:
+                for inner_row in row:
+                    for key in keys:
+                        grid[key][-1].append(inner_row.get(key))
 
         for key, vals in grid.items():
             if any(vals):
