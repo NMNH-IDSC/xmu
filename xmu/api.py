@@ -793,6 +793,10 @@ def _val_to_query(
         else:
             val = val[0]
 
+    # Map booleans and None using exists
+    if isinstance(val, bool) or val is None:
+        return exists(bool(val), col=col)
+
     # Coerce to numeric type if a data_type hint is numeric
     to_type = {"Float": float, "Integer": int}.get(data_type, str)
 
@@ -826,14 +830,61 @@ def _val_to_query(
 
     clauses = []
 
-    # Not nulls
-    not_nulls = ["!*", "!+"]
+    # Search for empty fields (null search)
+    chars = ["!*", "!+"]
     if use_emu_syntax:
-        not_nulls = [emu_escape(n) for n in not_nulls]
-    not_nulls = "(" + "|".join([re.escape(n) for n in not_nulls]) + ")"
-    if re.search(not_nulls, val):
+        chars = [emu_escape(n) for n in chars]
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|\$)"
+    if re.search(pattern, val):
+        clauses.append(exists(False, col=col))
+    val = re.sub(pattern, "", val).strip()
+    if not val:
+        return and_(clauses) if len(clauses) > 1 else clauses[0]
+
+    # Search for populated fields
+    chars = ["*", "+"]
+    if use_emu_syntax:
+        chars = [emu_escape(n) for n in chars]
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|\$)"
+    if re.search(pattern, val):
         clauses.append(exists(True, col=col))
-    val = re.sub(not_nulls, "", val).strip()
+    val = re.sub(pattern, "", val).strip()
+    if not val:
+        return and_(clauses) if len(clauses) > 1 else clauses[0]
+
+    # Search by stem
+    chars = ["~"]
+    if use_emu_syntax:
+        chars = [emu_escape(n) for n in chars]
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    match = re.search(pattern, val)
+    if match:
+        clauses.append(stemmed(match.group(3), col=col))
+    val = re.sub(pattern, "", val).strip()
+    if not val:
+        return and_(clauses) if len(clauses) > 1 else clauses[0]
+
+    # Search phonetically
+    chars = ["@"]
+    if use_emu_syntax:
+        chars = [emu_escape(n) for n in chars]
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    match = re.search(pattern, val)
+    if match:
+        clauses.append(phonetic(match.group(3), col=col))
+    val = re.sub(pattern, "", val).strip()
+    if not val:
+        return and_(clauses) if len(clauses) > 1 else clauses[0]
+
+    # Search case- and diacritic-sensitively
+    chars = ["=", "=="]
+    if use_emu_syntax:
+        chars = [emu_escape(n) for n in chars]
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    if re.search(pattern, val):
+        raise ValueError(
+            "Case- and diacritic-sensitive searches are not supported by the API"
+        )
 
     # Phrases
     if use_emu_syntax:
@@ -844,6 +895,8 @@ def _val_to_query(
         clause = phrase(val_.strip("\"'\\"), col=col)
         clauses.append(clause if op.lstrip("\\") != "!" else not_(clause))
     val = re.sub(pattern, "", val).strip()
+    if not val:
+        return and_(clauses) if len(clauses) > 1 else clauses[0]
 
     # Words and numbers
     pattern = f"{ops}?(.*)"
