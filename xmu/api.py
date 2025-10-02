@@ -345,6 +345,7 @@ def contains(val: str | list[str], col: str = None) -> dict:
     dict
         an EMu API contains clause
     """
+    return _build_multivalue_clause(val, col=col, op="contains")
 
 
 def range_(
@@ -445,7 +446,7 @@ def phonetic(val: str | list[str], col: str = None) -> dict:
     dict
         an EMu API phonetic clause
     """
-    return _build_clause(val, col=col, op="phonetic")
+    return _build_multivalue_clause(val, col=col, op="phonetic")
 
 
 def phrase(val: str | list[str], col: str = None) -> dict:
@@ -515,7 +516,7 @@ def stemmed(val: str | list[str], col: str = None) -> dict:
     dict
         an EMu API stemmed clause
     """
-    return _build_clause(val, col=col, op="stemmed")
+    return _build_multivalue_clause(val, col=col, op="stemmed")
 
 
 def is_not_null(col: str = None) -> dict:
@@ -739,7 +740,19 @@ def _build_clause(val: Any, op: str, col: str = None, **kwargs) -> dict:
     if op != "order":
         val = {"value": val}
         val.update(kwargs)
-    return {op: val} if col is None else {col: {op: val}}
+
+
+def _build_multivalue_clause(val: Any, op: str, col: str = None):
+    """Builds clauses for operations that should be split by word"""
+    clauses = []
+    for val in [val] if isinstance(val, str) else val:
+        clause = _build_clause(val.split(" "), col=col, op=op)
+        try:
+            clause = {"AND": clause.pop("OR")}
+        except KeyError:
+            pass
+        clauses.append(clause)
+    return or_(clauses) if len(clauses) > 1 else clauses[0]
 
 
 def _val_to_query(
