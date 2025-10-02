@@ -5,7 +5,7 @@ import json
 import logging
 import re
 from typing import Any, Callable
-from urllib.parse import urljoin
+from urllib.parse import unquote_plus, urljoin
 
 import requests
 
@@ -239,7 +239,7 @@ class EMuAPIResponse:
         params = {}
         for param in self.request.body.split("&"):
             key, val = param.split("=", 1)
-            params.setdefault(key, []).append(val)
+            params.setdefault(key, []).append(json.loads(unquote_plus(val)))
         return params
 
     def records(self):
