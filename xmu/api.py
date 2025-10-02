@@ -641,11 +641,15 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
     """Expands a simple filter to the format used by the EMu API"""
     stmts = []
     for col, val in filter_.items():
-
         # Add column name to individual clauses if not already there
         if isinstance(val, dict):
-            for bool_op, vals in val.items():
-                val[bool_op] = [{col: v} for v in vals]
+            for key in list(val):
+                vals = val[key]
+                if key in ("AND", "OR", "NOT"):
+                    val[key] = [{_prep_field(col): v} for v in vals]
+                else:
+                    val[_prep_field(col)] = {key: vals}
+                    del val[key]
 
         else:
             # Infer operator based on data type in the schema if provided
@@ -656,6 +660,8 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
                 )
 
             # Otherwise base the clause on the type of data supplied
+            elif val is None:
+                val = exists(False, col=col)
             elif _isinstance(val, bool):
                 val = exists(val, col=col)
             elif _isinstance(val, (float, int)):
@@ -671,8 +677,9 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
         else:
             stmts.append(val[0])
 
-    param = json.dumps(and_(stmts) if len(stmts) > 1 else stmts[0])
-    logger.debug(f"filter={repr(param)}")
+    # Filter must include a boolean operator even if there is only one element
+    param = json.dumps(and_(stmts))
+    logger.debug(f"Prepped filter as {repr(param)}")
     return param
 
 
