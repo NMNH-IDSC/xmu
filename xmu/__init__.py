@@ -12,6 +12,7 @@ from .api import (
     order,
     phrase,
     phonetic,
+    proximity,
     range_,
     regex,
     stemmed,
