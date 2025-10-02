@@ -251,7 +251,7 @@ class EMuAPIResponse:
 
     def next_page(self):
         limit = int(self.params.get(b"limit", [10])[0])
-        if len(self.headers["Next-Offsets"]) % limit:
+        if len(json.loads(self.headers["Next-Offsets"])) % limit:
             raise ValueError("Last page")
         return self._api.get(
             self.url,
