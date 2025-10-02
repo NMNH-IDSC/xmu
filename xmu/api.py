@@ -928,7 +928,7 @@ def _val_to_query(
     chars = ["!*", "!+"]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|\$)"
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
     if re.search(pattern, val):
         clauses.append(exists(False, col=col))
     val = re.sub(pattern, "", val).strip()
@@ -939,7 +939,7 @@ def _val_to_query(
     chars = ["*", "+"]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|\$)"
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
     if re.search(pattern, val):
         clauses.append(exists(True, col=col))
     val = re.sub(pattern, "", val).strip()
