@@ -345,7 +345,54 @@ def contains(val: str | list[str], col: str = None) -> dict:
     dict
         an EMu API contains clause
     """
-    return _build_clause(val, col=col, op="contains")
+
+
+def range_(
+    gt: str | int | float = None,
+    lt: str | int | float = None,
+    gte: str | int | float = None,
+    lte: str | int | float = None,
+    mode: str = None,
+    col: str = None,
+) -> dict:
+    """Builds a clause to match a range of values
+
+    At least one of gt, lt, gte, and lte must be provided. Only one of gt and gte
+    can be provided, and only one of lt and lte can be provided.
+
+    Paramters
+    ---------
+    gt: str | float | int
+        the lower bound of the search, not inclusive
+    lt: str | float | int
+        the upper bound of the search, inclusive
+    gte: str | float | int
+        the lower bound of the search, inclusive
+    lte: str | float | int
+        the upper bound of the search, inclusive
+    mode : str
+        one of date, time, latitude, or longitude. If omitted, will try to guess
+        based on the column or value.
+
+    Returns
+    -------
+    dict
+        an EMu API phonetic clause
+    """
+    kwargs = {"gt": gt, "lt": lt, "gte": gte, "lte": lte}
+    op = {k: v for k, v in kwargs.items() if v is not None}
+    if not op:
+        raise ValueError("Must provide at least one of gt, lt, gte, or lte")
+    if "gt" in op and "gte" in op:
+        raise ValueError("Can only provide one of gt and gte")
+    if "lt" in op and "lte" in op:
+        raise ValueError("Can only provide one of lt and lte")
+    # Infer mode from type of data
+    if mode is None:
+        mode = _infer_mode(list(op.values())[0])
+        if mode:
+            op["mode"] = mode
+    return _build_clause(None, col=col, op="range", **op)
 
 
 def exact(val: str | float | int, col: str = None, mode: str = None) -> dict:
@@ -417,51 +464,26 @@ def phrase(val: str | list[str], col: str = None) -> dict:
     return _build_clause(val, col=col, op="phrase")
 
 
-def range_(
-    gt: str | int | float = None,
-    lt: str | int | float = None,
-    gte: str | int | float = None,
-    lte: str | int | float = None,
-    mode: str = None,
-    col: str = None,
-) -> dict:
-    """Builds a clause to perform a range search in the EMu API
+def proximity(val: str | list[str], col: str = None, distance: int = 3) -> dict:
+    """Builds a clause to search for words within a certain distance of each other
 
-    At least one of gt, lt, gte, and lte must be provided. Only one of gt and gte
-    can be provided, and only one of lt and lte can be provided.
+    Equivalent to \\'\\(the \\"black cat\\"\\) <= 5 words\\' in the EMu client. The
+    client supports more complex operations (for example, searching in order) that do
+    not appear to be supported by the API.
 
     Paramters
     ---------
-    gt: str | float | int
-        the lower bound of the search, not inclusive
-    lt: str | float | int
-        the upper bound of the search, inclusive
-    gte: str | float | int
-        the lower bound of the search, inclusive
-    lte: str | float | int
-        the upper bound of the search, inclusive
-    mode : str
-        TKTK
+    val : str | list[str]
+        a string of two or more words or a list of such strings
+    distance : int
+        the maximum distance between words
 
     Returns
     -------
     dict
         an EMu API phonetic clause
     """
-    kwargs = {"gt": gt, "lt": lt, "gte": gte, "lte": lte}
-    op = {k: v for k, v in kwargs.items() if v is not None}
-    if not op:
-        raise ValueError("Must provide at least one of gt, lt, gte, or lte")
-    if "gt" in op and "gte" in op:
-        raise ValueError("Can only provide one of gt and gte")
-    if "lt" in op and "lte" in op:
-        raise ValueError("Can only provide one of lt and lte")
-    # Infer mode from type of data
-    if mode is None:
-        mode = _infer_mode(list(op.values())[0])
-        if mode:
-            op["mode"] = mode
-    return _build_clause(None, col=col, op="range", **op)
+    return _build_clause(val, col=col, op="proximity", distance=distance)
 
 
 def regex(val: str | list[str], col: str = None) -> dict:
