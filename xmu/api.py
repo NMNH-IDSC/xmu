@@ -88,6 +88,9 @@ class EMuAPI:
         headers["X-HTTP-Method-Override"] = "GET"
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
+        logger.debug(
+            f"Making GET request: {args[0]} (headers={headers}, params={kwargs})"
+        )
         return EMuAPIResponse(
             self.session.post(*args, **kwargs), api=self, rec_class=self.rec_class
         )
@@ -619,7 +622,7 @@ def _prep_select(select: dict | list = None) -> str:
     if "id" not in select:
         select.insert(0, "id")
     param = ",".join([_prep_field(f) for f in select])
-    logger.debug(f"select={repr(param)}")
+    logger.debug(f"Prepped select as {repr(param)}")
     return param
 
 
@@ -633,7 +636,7 @@ def _prep_sort(sort_: dict) -> str:
             val = order(val, col=col)
         clauses.append(val)
     param = json.dumps(clauses)
-    logger.debug(f"sort={repr(param)}")
+    logger.debug(f"Prepped sort as {repr(param)}")
     return param
 
 
@@ -722,22 +725,30 @@ def _build_clause(val: Any, op: str, col: str = None, **kwargs) -> dict:
                     kwargs[gt_key] = gt
                     kwargs[lt_key] = lt
                     vals.append(_build_clause(None, op, col=col, **kwargs))
-                return or_(vals)
+                clause = or_(vals)
+                logger.debug(f"Built range clause: {clause}")
+                return clause
 
             elif gt:
                 for gt in gt:
                     kwargs[gt_key] = gt
                     vals.append(_build_clause(None, op, col=col, **kwargs))
-                return or_(vals)
+                clause = or_(vals)
+                logger.debug(f"Built range clause: {clause}")
+                return clause
 
             elif lt:
                 for lt in lt:
                     kwargs[lt_key] = lt
                     vals.append(_build_clause(None, op, col=col, **kwargs))
-                return or_(vals)
+                clause = or_(vals)
+                logger.debug(f"Built range clause: {clause}")
+                return clause
 
         else:
-            return {"range": kwargs} if col is None else {col: {"range": kwargs}}
+            clause = {"range": kwargs} if col is None else {col: {"range": kwargs}}
+            logger.debug(f"Built range clause: {clause}")
+            return clause
 
     elif isinstance(val, (list, tuple)):
         if len(val) > 1:
@@ -747,6 +758,9 @@ def _build_clause(val: Any, op: str, col: str = None, **kwargs) -> dict:
     if op != "order":
         val = {"value": val}
         val.update(kwargs)
+    clause = {op: val} if col is None else {col: {op: val}}
+    logger.debug(f"Built {op} clause: {clause}")
+    return clause
 
 
 def _build_multivalue_clause(val: Any, op: str, col: str = None):
