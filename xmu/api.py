@@ -109,7 +109,8 @@ class EMuAPI:
 
         Returns
         -------
-        ????
+        EMuAPIResponse
+            the query response
         """
         url = self.base_url
         for part in [module, str(irn)]:
@@ -151,7 +152,8 @@ class EMuAPI:
 
         Yields
         ------
-        ????
+        EMuAPIResponse
+            the query response
         """
         params = self._prep_query(
             module=module,
@@ -232,6 +234,7 @@ class EMuAPIResponse:
 
     @property
     def module(self):
+        """The EMu module queried to get the response"""
         try:
             return self.json()["id"].split("/")[-2]
         except KeyError:
@@ -239,6 +242,7 @@ class EMuAPIResponse:
 
     @property
     def params(self):
+        """The query parameters used to make the request"""
         params = {}
         for param in self.request.body.split("&"):
             key, val = param.split("=", 1)
@@ -246,13 +250,35 @@ class EMuAPIResponse:
         return params
 
     def records(self):
+        """Gets a mapping of all records in the result set by IRN
+
+        Returns
+        -------
+        dict
+            maps irns to records
+        """
         return {r["irn"]: r for r in self}
 
     def first(self):
+        """Gets the first record from the result set
+
+        Returns
+        -------
+        dict
+            the first record. If a rec_class is specified, the record will use that
+            class.
+        """
         for rec in iter(self):
             return rec
 
     def next_page(self):
+        """Gets the next pages of results in the result set
+
+        Returns
+        -------
+        EMuAPIResponse
+            the result from the next page
+        """
         limit = int(self.params.get(b"limit", [10])[0])
         if len(json.loads(self.headers["Next-Offsets"])) % limit:
             raise ValueError("Last page")
@@ -263,6 +289,20 @@ class EMuAPIResponse:
         )
 
     def resolve_attachments(self, rec):
+        """Resolves attached records
+
+        Only attachments mapped in the original select parameter are resolved.
+
+        Parameters
+        ----------
+        rec : dict
+            a record returned by the API
+
+        Returns
+        -------
+        dict
+            the record with all attachments resolved
+        """
         if not self.select:
             return rec
         for key, val in rec.items():
@@ -336,12 +376,14 @@ def not_(clause: dict) -> dict:
 
 
 def contains(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to match fields containing a value in the EMu API
+    """Builds a clause to match fields containing a value
+
+    Equivalent to the basic, text-only search in the EMu client.
 
     Paramters
     ---------
     val : str | list[str]
-        the text to search for
+        the text to search for or a list of such strings
 
     Returns
     -------
@@ -400,14 +442,17 @@ def range_(
 
 
 def exact(val: str | float | int, col: str = None, mode: str = None) -> dict:
-    """Builds a clause to match fields exactly matching a value in the EMu API
+    """Builds a clause to match the complete contents of a column exactly
+
+    Equivalent to \\^\\"hello world\\"\\$ in the EMu client. Case insensitive.
 
     Paramters
     ---------
     val : str | float | int | list[str] | list[float] | list[int]
         the value or list of values to match
     mode : str
-        TKTK
+        one of date, time, latitude, or longitude. If omitted, will try to guess
+        based on the column or value.
 
     Returns
     -------
@@ -420,7 +465,10 @@ def exact(val: str | float | int, col: str = None, mode: str = None) -> dict:
 
 
 def exists(val: bool, col: str = None) -> dict:
-    """Builds a clause to test whether a field is populated in the EMu API
+    """Builds a clause to test whether a field is populated
+
+    Equivalent to \\* \\+ in the EMu client if True. Equivalent to \\!\\* or \\!\\+
+    if False or None.
 
     Paramters
     ---------
@@ -437,12 +485,14 @@ def exists(val: bool, col: str = None) -> dict:
 
 
 def phonetic(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to ... value in the EMu API
+    """Builds a clause to perform a phonetic search
+
+    Equivalent to \\@smythe in the EMu client.
 
     Paramters
     ---------
     val : str | list[str]
-        the text to search for
+        the text to search for or a list of such strings
 
     Returns
     -------
@@ -453,12 +503,14 @@ def phonetic(val: str | list[str], col: str = None) -> dict:
 
 
 def phrase(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to ... value in the EMu API
+    """Builds a clause to search for a phrase
+
+    Equvalent to \\"the black cat\"" in the EMu client.
 
     Paramters
     ---------
     val : str | list[str]
-        the text to search for
+        a multiword phrase or a list of such phrases
 
     Returns
     -------
@@ -485,13 +537,13 @@ def proximity(val: str | list[str], col: str = None, distance: int = 3) -> dict:
     Returns
     -------
     dict
-        an EMu API phonetic clause
+        an EMu API phrase clause
     """
     return _build_clause(val, col=col, op="proximity", distance=distance)
 
 
 def regex(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to ... value in the EMu API
+    """Builds a clause to perform a regular expression search
 
     Paramters
     ---------
@@ -507,12 +559,15 @@ def regex(val: str | list[str], col: str = None) -> dict:
 
 
 def stemmed(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to ... value in the EMu API
+    """Builds a clause to search for words matching the same root
+
+    Equivalent to \\~locate in the EMu client
 
     Paramters
     ---------
     val : str | list[str]
-        the text to search for
+        the root word to search for. For example, elect would match election,
+        elected, electioneering, elects but would not match electricity
 
     Returns
     -------
@@ -563,20 +618,45 @@ def order(val: str = "asc", col: str = None) -> dict:
 
 
 def emu_escape(val: str) -> str:
-    """Escapes a string according to EMu escape syntax"""
-    for item in ['"', "'", "!", "[", "]", "^", "$"]:
+    """Escapes a string according to EMu escape syntax
+
+    For example, the regular expression ^Hello world$ will be escaped as
+    \\^Hello world\\$.
+
+    Paramters
+    ---------
+    val : str
+        the text to escape
+
+    Returns
+    -------
+    str
+        the escaped text
+    """
+    for item in ['"', "'", "!", "[", "]", "^", "$", "*", "+", "~", "@", "=", "=="]:
         val = val.replace(item, rf"\{item}")
-    val = val.replace("!*", r"!\*")
-    val = val.replace("!+", r"!\+")
+    val = val.replace(r"=\=", "==")
     return val
 
 
 def emu_unescape(val: str) -> str:
-    """Unescapes a string that uses the EMu escape syntax"""
-    for item in ['"', "'", "!", "[", "]", "^", "$"]:
+    """Unescapes a string that uses the EMu escape syntax
+
+    For example, the regular expression \\^Hello world\\$ will be escaped as
+    ^Hello world$.
+
+    Paramters
+    ---------
+    val : str
+        the text to unescape
+
+    Returns
+    -------
+    str
+        the unescaped text
+    """
+    for item in ['"', "'", "!", "[", "]", "^", "$", "*", "+", "~", "@", "=", "=="]:
         val = val.replace(rf"\{item}", item)
-    val = val.replace(r"!\*", "!*")
-    val = val.replace(r"!\+", "!+")
     return val
 
 
@@ -938,12 +1018,12 @@ def _val_to_query(
 
 
 def _parse_api(module, val, key=None, mapped=None):
+    """Parses API response to remove field groupings"""
 
     if mapped is None:
         mapped = {}
 
     if key:
-        print(key)
         try:
             key = EMuAPI.schema.map_short_name(module, key)
         except KeyError:
