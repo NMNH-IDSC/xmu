@@ -753,7 +753,7 @@ def _build_clause(val: Any, op: str, col: str = None, **kwargs) -> dict:
     elif isinstance(val, (list, tuple)):
         if len(val) > 1:
             return or_([_build_clause(v, op, col=col, **kwargs) for v in val])
-        val = vals[0]
+        val = val[0]
 
     if op != "order":
         val = {"value": val}
