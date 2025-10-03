@@ -89,8 +89,37 @@ class EMuAPI:
     def session(self, val):
         self._session = val
 
-    def get(self, *args, **kwargs):
-        """Performs a GET operation with the proper authorization header"""
+    def get(self, *args, select=None, **kwargs):
+        """Performs a GET operation with the proper authorization header
+
+        Most requests should use either retrieve or search instead of calling this
+        method directly.
+
+        Parameters
+        ----------
+        args:
+            Any arg accepted by request.get()
+        select : list[str] | dict[dict], optional
+            A container with fields to include in the returned records. Fields from
+            other modules can be included using a dict formatted as follows:
+            {
+                "EMuField": None,
+                "EMuFieldRef": {
+                    "EMuFieldInAnotherModule": None,
+                }
+            }
+
+        kwargs:
+            Any kwarg accepted by request.get(). By default, the headers kwarg
+            includes {"Prefer": "representation=none", "X-HTTP-Method-Override" = "GET",
+            "Content-Type": "application/x-www-form-urlencoded"}. The latter two keys
+            are used to implement the HTTP method override recommended by Axiell.
+
+        Returns
+        -------
+        EMuAPIResponse
+            the response returned for the request
+        """
         headers = kwargs.setdefault("headers", {})
         headers["Authorization"] = f"{self._token}"
         headers.setdefault("Prefer", "representation=none")
@@ -99,8 +128,6 @@ class EMuAPI:
         # https://help.emu.axiell.com/emurestapi/3.1.2/05-Appendices-Override.html
         headers["X-HTTP-Method-Override"] = "GET"
         headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-        select = kwargs.pop("select", None)
 
         # Redact authorization before logging
         redacted = re.sub(
