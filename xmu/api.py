@@ -55,7 +55,7 @@ class EMuAPI:
         url: str,
         username: str = None,
         password: str = None,
-        parser: EMuAPIParser = None,
+        parser: "EMuAPIParser" = None,
         autopage: bool = True,
     ):
         self.base_url = url.rstrip("/") + "/"
@@ -81,6 +81,7 @@ class EMuAPI:
 
     @property
     def session(self):
+        """The session object to use for API queries"""
         if self._session is None:
             self._session = requests.Session()
         return self._session
