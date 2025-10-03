@@ -19,180 +19,6 @@ logger = logging.getLogger(__name__)
 TIMEOUT = 30
 
 
-class EMuAPI:
-    """Connects to and queries the EMu API
-
-    Parameters
-    ----------
-    url : str
-        the url for the EMu API, including tenant
-    username : str, optional
-        an EMu username. If omitted, defaults to the current OS username.
-    password : str, optional
-        the password for the given username, If omitted, the user will be
-        prompted for the password when the class is initiated.
-
-    Attributes
-    ----------
-    module : str
-        the backend name of an EMu module, for example, ecatalogue or eparties
-    use_emu_syntax : bool
-        specifies whether to use the EMu client syntax when parsing search terms.
-        Clients searches escape control characters using a backslash.
-    """
-
-    schema = None
-
-    def __init__(
-        self,
-        url: str,
-        username: str = None,
-        password: str = None,
-        parser: "EMuAPIParser" = None,
-    ):
-        self.base_url = url.rstrip("/") + "/"
-        self.use_emu_syntax = True
-        self.parser = parser
-
-        # Get token
-        self._token = requests.post(
-            urljoin(self.base_url, "tokens"),
-            json={
-                "username": getpass.getuser() if username is None else username,
-                "password": getpass.getpass() if password is None else password,
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=TIMEOUT,
-        ).headers["Authorization"]
-
-        self._session = None
-
-    @property
-    def session(self):
-        if self._session is None:
-            self._session = requests.Session()
-        return self._session
-
-    @session.setter
-    def session(self, val):
-        self._session = val
-
-    def get(self, *args, **kwargs):
-        """Performs a GET operation with the proper authorization header"""
-        headers = kwargs.setdefault("headers", {})
-        headers["Authorization"] = f"{self._token}"
-        headers.setdefault("Prefer", "representation=none")
-
-        # Add the HTTP method override per recommendation at
-        # https://help.emu.axiell.com/emurestapi/3.1.2/05-Appendices-Override.html
-        headers["X-HTTP-Method-Override"] = "GET"
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-        select = kwargs.pop("select", None)
-
-        redacted = re.sub(
-            "'Authorization': '.*?'", "'Authorization': '[REDACTED]'", str(kwargs)
-        )
-        logger.debug(f"Making GET request: {args[0]} (params={redacted})")
-        return EMuAPIResponse(
-            self.session.post(*args, **kwargs),
-            api=self,
-            select=select,
-        )
-
-    def retrieve(self, module: str, irn: str | int, select: list[str] = None) -> None:
-        """Retrieves a single record from an irn
-
-        Parameters
-        ----------
-        module: str
-            the module to query
-        irn : str | int
-            the IRN for the EMu record to retrieve
-        select : list[str], optional
-            the list of EMu fields to return. If omitted, returns the record id.
-
-        Returns
-        -------
-        EMuAPIResponse
-            the query response
-        """
-        url = self.base_url
-        for part in [module, str(irn)]:
-            url = urljoin(url, part).rstrip("/") + "/"
-        params = self._prep_query(module=module, select=select)
-        return self.get(url.rstrip("/"), data=params, select=select)
-
-    def search(
-        self,
-        module: str,
-        select: list[str] = None,
-        sort_: dict = None,
-        filter_: dict = None,
-        limit: int = 10,
-        cursor_type: str = "server",
-    ):
-        """Searches EMu based on the provided filter
-
-        Parameters
-        ----------
-        module: str
-            the module to query
-        select : list[str], optional
-            the list of EMu fields to return. If omitted, returns the record id.
-        sort_ : dict, optional
-            criteria by which to order the results. Each key must have the value
-            "asc" or "desc".
-        filter_: dict, optional
-            search filter. Each key-value pair consists of a field name and value.
-            Complex searches can be made using the helper functions included in
-            this module (contains, phrase, etc.) Lists are expanded as OR searches.
-            Values that have not been converted to the API syntax will be parsed
-            using a set of rules modeled on EMu client searches.
-        limit: int, default=10
-            the number of records to return per page
-        cursor_type: strc, default="server"
-
-        Yields
-        ------
-        EMuAPIResponse
-            the query response
-        """
-        params = self._prep_query(
-            module=module,
-            select=select,
-            sort=sort_,
-            filter=filter_,
-            limit=limit,
-            cursor_type=cursor_type,
-        )
-        return self.get(
-            urljoin(self.base_url, module).rstrip("/"), data=params, select=select
-        )
-
-    def _prep_query(self, **kwargs):
-        """Format the query for the EMu API"""
-
-        params = {}
-
-        if kwargs.get("select"):
-            params["select"] = _prep_select(kwargs["select"])
-
-        if kwargs.get("sort"):
-            params["sort"] = _prep_sort(kwargs["sort"])
-
-        if kwargs.get("filter"):
-            params["filter"] = _prep_filter(
-                kwargs["module"], kwargs["filter"], self.use_emu_syntax
-            )
-
-        for key in ("limit", "cursorType"):
-            if kwargs.get(key):
-                params[key] = kwargs[key]
-
-        return params
-
-
 class EMuAPIResponse:
     """Wraps a response from the EMu API response"""
 
@@ -238,10 +64,17 @@ class EMuAPIResponse:
                             f"No records found: {repr(resp.text)} ({resp.request.url})"
                         ) from exc
                 else:
-                    try:
-                        resp = resp.next_page()
-                    except ValueError:
-                        break
+                    # Get
+                    if self._api.autopage:
+                        try:
+                            resp = resp.next_page()
+                        except ValueError:
+                            break
+                        else:
+                            if hasattr(resp, "from_cache") and resp.from_cache:
+                                logger.debug("Response is from cache")
+                            else:
+                                logger.debug("Response is from server")
 
     @property
     def module(self):
@@ -254,8 +87,14 @@ class EMuAPIResponse:
     @property
     def params(self):
         """The query parameters used to make the request"""
+        body = self.request.body
+        # Decode the request body if using requests_cache
+        try:
+            body = body.decode("utf-8")
+        except AttributeError:
+            pass
         params = {}
-        for param in self.request.body.split("&"):
+        for param in body.split("&"):
             key, val = param.split("=", 1)
             val = unquote_plus(val)
             try:
@@ -370,6 +209,194 @@ class EMuAPIParser:
                             field_info["RefTable"], val, select=select_
                         ).first()
         return rec
+
+
+class EMuAPI:
+    """Connects to and queries the EMu API
+
+    Parameters
+    ----------
+    url : str
+        the url for the EMu API, including tenant
+    username : str, optional
+        an EMu username. If omitted, defaults to the current OS username.
+    password : str, optional
+        the password for the given username, If omitted, the user will be
+        prompted for the password when the class is initiated.
+    parser : EMuAPIParser, optional
+        the parser object used to parse individual records. The default EMuAPIParser
+        class returns a close approximation of the format used by EMuRecord. If None,
+        records will be returned as formatted by the API.
+    autopage : bool = True
+        whether to automatically page through results if the total number of results
+        exceeds the limit of a given request
+
+    Attributes
+    ----------
+    module : str
+        the backend name of an EMu module, for example, ecatalogue or eparties
+    use_emu_syntax : bool
+        specifies whether to use the EMu client syntax when parsing search terms.
+        Clients searches escape control characters using a backslash.
+    """
+
+    schema = None
+
+    def __init__(
+        self,
+        url: str,
+        username: str = None,
+        password: str = None,
+        parser: EMuAPIParser = None,
+        autopage: bool = True,
+    ):
+        self.base_url = url.rstrip("/") + "/"
+        self.use_emu_syntax = True
+        self.parser = parser
+
+        # The autopage parameter is passed to EMuAPIResponse but it is cleaner
+        # to implement it here
+        self.autopage = autopage
+
+        # Get token
+        self._token = requests.post(
+            urljoin(self.base_url, "tokens"),
+            json={
+                "username": getpass.getuser() if username is None else username,
+                "password": getpass.getpass() if password is None else password,
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=TIMEOUT,
+        ).headers["Authorization"]
+
+        self._session = None
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = requests.Session()
+        return self._session
+
+    @session.setter
+    def session(self, val):
+        self._session = val
+
+    def get(self, *args, **kwargs):
+        """Performs a GET operation with the proper authorization header"""
+        headers = kwargs.setdefault("headers", {})
+        headers["Authorization"] = f"{self._token}"
+        headers.setdefault("Prefer", "representation=none")
+
+        # Add the HTTP method override per recommendation at
+        # https://help.emu.axiell.com/emurestapi/3.1.2/05-Appendices-Override.html
+        headers["X-HTTP-Method-Override"] = "GET"
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        select = kwargs.pop("select", None)
+
+        # Redact authorization before logging
+        redacted = re.sub(
+            "'Authorization': '.*?'", "'Authorization': '[REDACTED]'", str(kwargs)
+        )
+
+        logger.debug(f"Making GET request: {args[0]} (params={redacted})")
+        return EMuAPIResponse(
+            self.session.post(*args, **kwargs),
+            api=self,
+            select=select,
+        )
+
+    def retrieve(self, module: str, irn: str | int, select: list[str] = None) -> None:
+        """Retrieves a single record from an irn
+
+        Parameters
+        ----------
+        module: str
+            the module to query
+        irn : str | int
+            the IRN for the EMu record to retrieve
+        select : list[str], optional
+            the list of EMu fields to return. If omitted, returns the record id.
+
+        Returns
+        -------
+        EMuAPIResponse
+            the query response
+        """
+        url = self.base_url
+        for part in [module, str(irn)]:
+            url = urljoin(url, part).rstrip("/") + "/"
+        params = self._prep_query(module=module, select=select)
+        return self.get(url.rstrip("/"), data=params, select=select)
+
+    def search(
+        self,
+        module: str,
+        select: list[str] = None,
+        sort_: dict = None,
+        filter_: dict = None,
+        limit: int = 10,
+        cursor_type: str = "server",
+    ):
+        """Searches EMu based on the provided filter
+
+        Parameters
+        ----------
+        module: str
+            the module to query
+        select : list[str], optional
+            the list of EMu fields to return. If omitted, returns the record id.
+        sort_ : dict, optional
+            criteria by which to order the results. Each key must have the value
+            "asc" or "desc".
+        filter_: dict, optional
+            search filter. Each key-value pair consists of a field name and value.
+            Complex searches can be made using the helper functions included in
+            this module (contains, phrase, etc.) Lists are expanded as OR searches.
+            Values that have not been converted to the API syntax will be parsed
+            using a set of rules modeled on EMu client searches.
+        limit: int, default=10
+            the number of records to return per page
+        cursor_type: strc, default="server"
+
+        Yields
+        ------
+        EMuAPIResponse
+            the query response
+        """
+        params = self._prep_query(
+            module=module,
+            select=select,
+            sort=sort_,
+            filter=filter_,
+            limit=limit,
+            cursor_type=cursor_type,
+        )
+        return self.get(
+            urljoin(self.base_url, module).rstrip("/"), data=params, select=select
+        )
+
+    def _prep_query(self, **kwargs):
+        """Format the query for the EMu API"""
+
+        params = {}
+
+        if kwargs.get("select"):
+            params["select"] = _prep_select(kwargs["select"])
+
+        if kwargs.get("sort"):
+            params["sort"] = _prep_sort(kwargs["sort"])
+
+        if kwargs.get("filter"):
+            params["filter"] = _prep_filter(
+                kwargs["module"], kwargs["filter"], self.use_emu_syntax
+            )
+
+        for key in ("limit", "cursorType"):
+            if kwargs.get(key):
+                params[key] = kwargs[key]
+
+        return params
 
 
 def and_(clauses: list[dict]) -> dict:
@@ -1079,7 +1106,7 @@ def _parse_api(val, module, key=None, mapped=None):
         for key, val in val.items():
             _parse_api(val, module, key, mapped)
 
-    # Map tables
+    # Map tables. Groups are based on definitions in the schema.
     elif key.endswith("_grp"):
 
         keys = []
