@@ -4,7 +4,7 @@ import getpass
 import json
 import logging
 import re
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import unquote_plus, urljoin
 
 import requests
@@ -17,198 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 TIMEOUT = 30
-
-
-class EMuAPIResponse:
-    """Wraps a response from the EMu API response"""
-
-    def __init__(self, response, api, select=None):
-        self._response = response
-        self._api = api
-        self._select = select
-
-    def __getattr__(self, attr):
-        return getattr(self._response, attr)
-
-    def __len__(self):
-        return len(json.loads(self.headers["Next-Offsets"]))
-
-    def __iter__(self):
-        try:
-            rec = self.json()["data"]
-            if self._api.parser is not None:
-                rec = self._api.parser.parse(
-                    rec, module=resp.module, select=self._select
-                )
-            yield rec
-        except json.JSONDecodeError:
-            raise ValueError(
-                f"Response cannot be decoded: {repr(self.text)} (status_code={self.status_code})"
-            )
-        except KeyError:
-            resp = self
-            while True:
-                try:
-                    for match in resp.json()["matches"]:
-                        rec = match["data"]
-                        if self._api.parser is not None:
-                            rec = self._api.parser.parse(
-                                rec, module=resp.module, select=self._select
-                            )
-                        yield rec
-                except Exception as exc:
-                    try:
-                        raise ValueError(f"Could not parse match: {match}") from exc
-                    except NameError:
-                        raise ValueError(
-                            f"No records found: {repr(resp.text)} ({resp.request.url})"
-                        ) from exc
-                else:
-                    # Get
-                    if self._api.autopage:
-                        try:
-                            resp = resp.next_page()
-                        except ValueError:
-                            break
-                        else:
-                            if hasattr(resp, "from_cache") and resp.from_cache:
-                                logger.debug("Response is from cache")
-                            else:
-                                logger.debug("Response is from server")
-
-    @property
-    def module(self):
-        """The EMu module queried to create the response"""
-        try:
-            return self.json()["id"].split("/")[-2]
-        except KeyError:
-            return self.json()["matches"][0]["id"].split("/")[-2]
-
-    @property
-    def params(self):
-        """The query parameters used to make the request"""
-        body = self.request.body
-        # Decode the request body if using requests_cache
-        try:
-            body = body.decode("utf-8")
-        except AttributeError:
-            pass
-        params = {}
-        for param in body.split("&"):
-            key, val = param.split("=", 1)
-            val = unquote_plus(val)
-            try:
-                val = json.loads(val)
-            except json.JSONDecodeError:
-                pass
-            params.setdefault(key, []).append(val)
-        return params
-
-    def records(self):
-        """Gets a mapping of all records in the result set by IRN
-
-        Returns
-        -------
-        dict
-            dict that maps irns to records
-        """
-        return {r["irn"]: r for r in self}
-
-    def first(self):
-        """Gets the first record from the result set
-
-        Returns
-        -------
-        dict
-            the first record. If a rec_class is specified, the record will use that
-            class.
-        """
-        for rec in iter(self):
-            return rec
-
-    def next_page(self):
-        """Gets the next pages of results in the result set
-
-        Returns
-        -------
-        EMuAPIResponse
-            the result from the next page
-        """
-        limit = int(self.params.get("limit", [10])[0])
-        if len(self) != limit:
-            raise ValueError(f"Last page (num_results={len(self)}, limit={limit})")
-        return self._api.get(
-            self.url,
-            data=self.request.body,
-            headers={"Next-Search": self.headers["Next-Search"]},
-        )
-
-
-class EMuAPIParser:
-    """Parses responses from the EMu API"""
-
-    def __init__(self, rec_class=dict):
-        self._rec_class = rec_class
-
-    def parse(self, rec, module, select=None):
-        """Parses a record returned by the EMu API
-
-        Only attachments mapped in the original select parameter are resolved.
-
-        Parameters
-        ----------
-        rec : dict
-            a record retrieved from the EMu API
-        select : dict
-            the fields to return
-
-        Returns
-        -------
-        dict
-            the record with all attachments resolved
-        """
-        parsed = _parse_api(rec, module)
-        if self._rec_class != dict:
-            parsed = self._rec_class(parsed, module=module)
-        if select:
-            parsed = self.resolve_attachments(parsed, select=select)
-        return parsed
-
-    def resolve_attachments(self, rec, select=None):
-        """Resolves attachments in a record returned by the EMu API
-
-        Only attachments mapped in the select parameter are resolved.
-
-        Parameters
-        ----------
-        rec : dict
-            a record returned by the API
-
-        Returns
-        -------
-        dict
-            the record with all attachments resolved
-        """
-        for key, val in rec.items():
-            if is_ref(key):
-                field_info = self._api.schema.get_field_info(self.module, key)
-                try:
-                    select_ = select[key]
-                except (KeyError, TypeError):
-                    pass
-                else:
-                    if isinstance(val, list):
-                        for i, val in enumerate(val):
-                            if val:
-                                val = self._api.retrieve(
-                                    field_info["RefTable"], val, select=select_
-                                ).first()
-                            rec[key][i] = val
-                    else:
-                        rec[key] = self._api.retrieve(
-                            field_info["RefTable"], val, select=select_
-                        ).first()
-        return rec
 
 
 class EMuAPI:
@@ -397,6 +205,215 @@ class EMuAPI:
                 params[key] = kwargs[key]
 
         return params
+
+
+class EMuAPIResponse:
+    """Wraps a response from the EMu API response"""
+
+    cache = {}
+
+    def __init__(
+        self,
+        response: requests.Response,
+        api: EMuAPI,
+        select: list[str] | dict[dict] = None,
+    ):
+        self._response = response
+        self._api = api
+        self._select = select
+
+    def __getattr__(self, attr):
+        return getattr(self._response, attr)
+
+    def __len__(self):
+        return len(json.loads(self.headers["Next-Offsets"]))
+
+    def __iter__(self):
+        try:
+            yield self._get(self.json()["data"])
+        except json.JSONDecodeError:
+            raise ValueError(
+                f"Response cannot be decoded: {repr(self.text)} (status_code={self.status_code})"
+            )
+        except KeyError:
+            resp = self
+            while True:
+                try:
+                    for match in resp.json()["matches"]:
+                        yield self._get(match["data"], resp)
+                except Exception as exc:
+                    try:
+                        raise ValueError(
+                            f"Could not parse match: {match} from {repr(resp.text)}"
+                        ) from exc
+                    except NameError:
+                        raise ValueError(
+                            f"No records found: {repr(resp.text)} ({resp.request.url})"
+                        ) from exc
+                else:
+                    # Get
+                    if self._api.autopage:
+                        try:
+                            resp = resp.next_page()
+                        except ValueError:
+                            break
+                        else:
+                            if hasattr(resp, "from_cache") and resp.from_cache:
+                                logger.debug("Response is from cache")
+                            else:
+                                logger.debug("Response is from server")
+
+    @property
+    def module(self):
+        """The EMu module queried to create the response"""
+        try:
+            return self.json()["id"].split("/")[-2]
+        except KeyError:
+            return self.json()["matches"][0]["id"].split("/")[-2]
+
+    @property
+    def params(self):
+        """The query parameters used to make the request"""
+        body = self.request.body
+        # Decode the request body if using requests_cache
+        try:
+            body = body.decode("utf-8")
+        except AttributeError:
+            pass
+        params = {}
+        for param in body.split("&"):
+            key, val = param.split("=", 1)
+            val = unquote_plus(val)
+            try:
+                val = json.loads(val)
+            except json.JSONDecodeError:
+                pass
+            params.setdefault(key, []).append(val)
+        return params
+
+    def records(self):
+        """Gets a mapping of all records in the result set by IRN
+
+        Returns
+        -------
+        dict
+            dict that maps irns to records
+        """
+        return {r["irn"]: r for r in self}
+
+    def first(self):
+        """Gets the first record from the result set
+
+        Returns
+        -------
+        dict
+            the first record. If a rec_class is specified, the record will use that
+            class.
+        """
+        for rec in iter(self):
+            return rec
+
+    def next_page(self):
+        """Gets the next pages of results in the result set
+
+        Returns
+        -------
+        EMuAPIResponse
+            the result from the next page
+        """
+        limit = int(self.params.get("limit", [10])[0])
+        if len(self) != limit:
+            raise ValueError(f"Last page (num_results={len(self)}, limit={limit})")
+        return self._api.get(
+            self.url,
+            data=self.request.body,
+            headers={"Next-Search": self.headers["Next-Search"]},
+        )
+
+    def _get(self, rec, resp=None):
+        """Reads and parses a single record from a response"""
+        if resp is None:
+            resp = self
+        key = rec["irn"]
+        try:
+            return self.__class__.cache[key]
+        except KeyError:
+            if resp._api.parser is not None:
+                rec = self._api.parser.parse(
+                    rec, module=resp.module, select=resp._select
+                )
+            self.__class__.cache[key] = rec
+            return rec
+
+
+class EMuAPIParser:
+    """Parses responses from the EMu API"""
+
+    def __init__(self, rec_class=dict):
+        self._rec_class = rec_class
+
+    def parse(self, rec: dict, module: str, select: list | dict[dict] = None):
+        """Parses a record returned by the EMu API
+
+        Only attachments mapped in the original select parameter are resolved.
+
+        Parameters
+        ----------
+        rec : dict
+            a record retrieved from the EMu API
+        module : str
+            the backend name of the EMu module
+        select : list | dict
+            the fields to return
+
+        Returns
+        -------
+        dict
+            the record with all attachments resolved
+        """
+        parsed = _parse_api(rec, module)
+        if self._rec_class != dict:
+            parsed = self._rec_class(parsed, module=module)
+        if select:
+            parsed = self.resolve_attachments(parsed, select=select)
+        return parsed
+
+    def resolve_attachments(self, rec: dict, select: list | dict[dict] = None):
+        """Resolves attachments in a record returned by the EMu API
+
+        Only attachments mapped in the select parameter are resolved.
+
+        Parameters
+        ----------
+        rec : dict
+            a record returned by the API
+        select : list | dict
+
+        Returns
+        -------
+        dict
+            the record with all attachments resolved
+        """
+        for key, val in rec.items():
+            if is_ref(key):
+                field_info = self._api.schema.get_field_info(self.module, key)
+                try:
+                    select_ = select[key]
+                except (KeyError, TypeError):
+                    pass
+                else:
+                    if isinstance(val, list):
+                        for i, val in enumerate(val):
+                            if val:
+                                val = self._api.retrieve(
+                                    field_info["RefTable"], val, select=select_
+                                ).first()
+                            rec[key][i] = val
+                    else:
+                        rec[key] = self._api.retrieve(
+                            field_info["RefTable"], val, select=select_
+                        ).first()
+        return rec
 
 
 def and_(clauses: list[dict]) -> dict:
