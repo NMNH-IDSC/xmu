@@ -2,6 +2,8 @@
 
 from .api import (
     EMuAPI,
+    EMuAPIParser,
+    EMuAPIResponse,
     contains,
     emu_escape,
     emu_unescape,
