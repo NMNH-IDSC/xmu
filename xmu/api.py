@@ -659,7 +659,8 @@ def proximity(val: str | list[str], col: str = None, distance: int = 3) -> dict:
     dict
         an EMu API phrase clause
     """
-    return _build_clause(val, col=col, op="proximity", distance=distance)
+    raise NotImplementedError("Condition does not work as expected in API or client")
+    return _build_cond(val, col=col, op="proximity", distance=distance)
 
 
 def regex(val: str | list[str], col: str = None) -> dict:
