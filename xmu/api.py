@@ -984,8 +984,13 @@ def _val_to_query(
     to_type = {"Float": float, "Integer": int}.get(data_type, str)
 
     # Simple numeric values can be returned with exact
-    if (not data_type or to_type in (float, int)) and isinstance(val, (float, int)):
-        return exact(val, col=col)
+    if not data_type or to_type in (float, int):
+        if isinstance(val, (float, int)):
+            return exact(val, col=col)
+        try:
+            return exact(to_type(val), col=col)
+        except ValueError:
+            pass
 
     # EMuType classes map to exact
     for cls_, mode_ in (
