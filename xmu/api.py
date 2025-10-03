@@ -447,56 +447,56 @@ class EMuAPIParser:
         return rec
 
 
-def and_(clauses: list[dict]) -> dict:
-    """Combines a list of clauses with AND
+def and_(conds: list[dict]) -> dict:
+    """Combines a list of conditions with AND
 
     Parameters
     ----------
-    clauses : list[dict]
-        list of clauses
+    conds : list[dict]
+        list of conditions
 
     Returns
     -------
     dict
-        {"AND": clauses}
+        {"AND": conds}
     """
-    return {"AND": clauses}
+    return {"AND": conds}
 
 
-def or_(clauses: list[dict]) -> dict:
-    """Combines a list of clauses with OR
+def or_(conds: list[dict]) -> dict:
+    """Combines a list of conditions with OR
 
     Parameters
     ----------
-    clauses : list[dict]
-        list of clauses
+    conds : list[dict]
+        list of conditions
 
     Returns
     -------
     dict
-        {"OR": clauses}
+        {"OR": conds}
     """
-    return {"OR": clauses}
+    return {"OR": conds}
 
 
-def not_(clause: dict) -> dict:
-    """Negates a clause
+def not_(cond: dict) -> dict:
+    """Negates a condition
 
     Parameters
     ----------
-    clauses : dict
-        a clause
+    conds : dict
+        a condition
 
     Returns
     -------
     dict
-        {"NOT": clauses}
+        {"NOT": conds}
     """
-    return {"NOT": clause}
+    return {"NOT": cond}
 
 
 def contains(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to match fields containing a value
+    """Builds a condition to match fields containing a value
 
     Equivalent to the basic, text-only search in the EMu client.
 
@@ -508,9 +508,9 @@ def contains(val: str | list[str], col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API contains clause
+        an EMu API contains condition
     """
-    return _build_multivalue_clause(val, col=col, op="contains")
+    return _build_multivalue_cond(val, col=col, op="contains")
 
 
 def range_(
@@ -521,7 +521,7 @@ def range_(
     mode: str = None,
     col: str = None,
 ) -> dict:
-    """Builds a clause to match a range of values
+    """Builds a condition to match a range of values
 
     At least one of gt, lt, gte, and lte must be provided. Only one of gt and gte
     can be provided, and only one of lt and lte can be provided.
@@ -543,7 +543,7 @@ def range_(
     Returns
     -------
     dict
-        an EMu API phonetic clause
+        an EMu API phonetic condition
     """
     kwargs = {"gt": gt, "lt": lt, "gte": gte, "lte": lte}
     op = {k: v for k, v in kwargs.items() if v is not None}
@@ -558,11 +558,11 @@ def range_(
         mode = _infer_mode(list(op.values())[0])
         if mode:
             op["mode"] = mode
-    return _build_clause(None, col=col, op="range", **op)
+    return _build_cond(None, col=col, op="range", **op)
 
 
 def exact(val: str | float | int, col: str = None, mode: str = None) -> dict:
-    """Builds a clause to match the complete contents of a column exactly
+    """Builds a condition to match the complete contents of a column exactly
 
     Equivalent to \\^\\"hello world\\"\\$ in the EMu client. Case insensitive.
 
@@ -577,15 +577,15 @@ def exact(val: str | float | int, col: str = None, mode: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API exact clause
+        an EMu API exact condition
     """
     if mode is None:
         mode = _infer_mode(val)
-    return _build_clause(val, col=col, op="exact", mode=mode)
+    return _build_cond(val, col=col, op="exact", mode=mode)
 
 
 def exists(val: bool, col: str = None) -> dict:
-    """Builds a clause to test whether a field is populated
+    """Builds a condition to test whether a field is populated
 
     Equivalent to \\* \\+ in the EMu client if True. Equivalent to \\!\\* or \\!\\+
     if False or None.
@@ -599,13 +599,13 @@ def exists(val: bool, col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API exists clause
+        an EMu API exists condition
     """
-    return _build_clause(val, col=col, op="exists")
+    return _build_cond(val, col=col, op="exists")
 
 
 def phonetic(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to perform a phonetic search
+    """Builds a condition to perform a phonetic search
 
     Equivalent to \\@smythe in the EMu client.
 
@@ -617,13 +617,13 @@ def phonetic(val: str | list[str], col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API phonetic clause
+        an EMu API phonetic condition
     """
-    return _build_multivalue_clause(val, col=col, op="phonetic")
+    return _build_multivalue_cond(val, col=col, op="phonetic")
 
 
 def phrase(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to search for a phrase
+    """Builds a condition to search for a phrase
 
     Equvalent to \\"the black cat\"" in the EMu client.
 
@@ -635,13 +635,13 @@ def phrase(val: str | list[str], col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API phrase clause
+        an EMu API phrase condition
     """
-    return _build_clause(val, col=col, op="phrase")
+    return _build_cond(val, col=col, op="phrase")
 
 
 def proximity(val: str | list[str], col: str = None, distance: int = 3) -> dict:
-    """Builds a clause to search for words within a certain distance of each other
+    """Builds a condition to search for words within a certain distance of each other
 
     Equivalent to \\'\\(the \\"black cat\\"\\) <= 5 words\\' in the EMu client. The
     client supports more complex operations (for example, searching in order) that do
@@ -657,14 +657,14 @@ def proximity(val: str | list[str], col: str = None, distance: int = 3) -> dict:
     Returns
     -------
     dict
-        an EMu API phrase clause
+        an EMu API phrase condition
     """
     raise NotImplementedError("Condition does not work as expected in API or client")
     return _build_cond(val, col=col, op="proximity", distance=distance)
 
 
 def regex(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to perform a regular expression search
+    """Builds a condition to perform a regular expression search
 
     Paramters
     ---------
@@ -674,13 +674,13 @@ def regex(val: str | list[str], col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API regex clause
+        an EMu API regex condition
     """
-    return _build_clause(val, col=col, op="regex")
+    return _build_cond(val, col=col, op="regex")
 
 
 def stemmed(val: str | list[str], col: str = None) -> dict:
-    """Builds a clause to search for words matching the same root
+    """Builds a condition to search for words matching the same root
 
     Equivalent to \\~locate in the EMu client
 
@@ -693,37 +693,37 @@ def stemmed(val: str | list[str], col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API stemmed clause
+        an EMu API stemmed condition
     """
-    return _build_multivalue_clause(val, col=col, op="stemmed")
+    return _build_multivalue_cond(val, col=col, op="stemmed")
 
 
 def is_not_null(col: str = None) -> dict:
-    """Builds a clause that matches a non-empty field in the EMu API
+    """Builds a condition that matches a non-empty field in the EMu API
 
     Alias for exists(True).
 
     Returns
     -------
     dict
-        an EMu API exists=True clause
+        an EMu API exists=True condition
     """
     return exists(True, col=col)
 
 
 def is_null(col: str = None) -> dict:
-    """Builds a clause that matches an empty field in the EMu API
+    """Builds a condition that matches an empty field in the EMu API
 
     Returns
     -------
     dict
-        an EMu API exists=False clause
+        an EMu API exists=False condition
     """
     return exists(False, col=col)
 
 
 def order(val: str = "asc", col: str = None) -> dict:
-    """Builds a clause to sort in the given direction
+    """Builds a condition to sort in the given direction
 
     Paramters
     ---------
@@ -733,9 +733,9 @@ def order(val: str = "asc", col: str = None) -> dict:
     Returns
     -------
     dict
-        an EMu API order clause
+        an EMu API order condition
     """
-    return _build_clause(val, col=col, op="order")
+    return _build_cond(val, col=col, op="order")
 
 
 def emu_escape(val: str) -> str:
@@ -833,12 +833,12 @@ def _prep_sort(sort_: dict) -> str:
     """Expands a simple sort to the format used by the EMu API"""
     if isinstance(sort_, list):
         sort_ = {c: "asc" for c in sort_}
-    clauses = []
+    conds = []
     for col, val in sort_.items():
         if not isinstance(val, dict):
             val = order(val, col=col)
-        clauses.append(val)
-    param = json.dumps(clauses)
+        conds.append(val)
+    param = json.dumps(conds)
     logger.debug(f"Prepped sort as {repr(param)}")
     return param
 
@@ -847,7 +847,7 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
     """Expands a simple filter to the format used by the EMu API"""
     stmts = []
     for col, val in filter_.items():
-        # Add column name to individual clauses if not already there
+        # Add column name to individual conditions if not already there
         if isinstance(val, dict):
             for key in list(val):
                 vals = val[key]
@@ -865,7 +865,7 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
                     col, val, use_emu_syntax=use_emu_syntax, data_type=data_type
                 )
 
-            # Otherwise base the clause on the type of data supplied
+            # Otherwise base the condition on the type of data supplied
             elif val is None:
                 val = exists(False, col=col)
             elif _isinstance(val, bool):
@@ -889,8 +889,8 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
     return param
 
 
-def _build_clause(val: Any, op: str, col: str = None, **kwargs) -> dict:
-    """Helper function to build a clause for the EMu API"""
+def _build_cond(val: Any, op: str, col: str = None, **kwargs) -> dict:
+    """Helper function to build a condition for the EMu API"""
 
     if col:
         col = _prep_field(col)
@@ -927,56 +927,56 @@ def _build_clause(val: Any, op: str, col: str = None, **kwargs) -> dict:
                 for gt, lt in zip(gt, lt):
                     kwargs[gt_key] = gt
                     kwargs[lt_key] = lt
-                    vals.append(_build_clause(None, op, col=col, **kwargs))
-                clause = or_(vals)
-                logger.debug(f"Built range clause: {clause}")
-                return clause
+                    vals.append(_build_cond(None, op, col=col, **kwargs))
+                cond = or_(vals)
+                logger.debug(f"Built range condition: {cond}")
+                return cond
 
             elif gt:
                 for gt in gt:
                     kwargs[gt_key] = gt
-                    vals.append(_build_clause(None, op, col=col, **kwargs))
-                clause = or_(vals)
-                logger.debug(f"Built range clause: {clause}")
-                return clause
+                    vals.append(_build_cond(None, op, col=col, **kwargs))
+                cond = or_(vals)
+                logger.debug(f"Built range condition: {cond}")
+                return cond
 
             elif lt:
                 for lt in lt:
                     kwargs[lt_key] = lt
-                    vals.append(_build_clause(None, op, col=col, **kwargs))
-                clause = or_(vals)
-                logger.debug(f"Built range clause: {clause}")
-                return clause
+                    vals.append(_build_cond(None, op, col=col, **kwargs))
+                cond = or_(vals)
+                logger.debug(f"Built range condition: {cond}")
+                return cond
 
         else:
-            clause = {"range": kwargs} if col is None else {col: {"range": kwargs}}
-            logger.debug(f"Built range clause: {clause}")
-            return clause
+            cond = {"range": kwargs} if col is None else {col: {"range": kwargs}}
+            logger.debug(f"Built range condition: {cond}")
+            return cond
 
     elif isinstance(val, (list, tuple)):
         if len(val) > 1:
-            return or_([_build_clause(v, op, col=col, **kwargs) for v in val])
+            return or_([_build_cond(v, op, col=col, **kwargs) for v in val])
         val = val[0]
 
     if op != "order":
         val = {"value": val}
         val.update(kwargs)
-    clause = {op: val} if col is None else {col: {op: val}}
-    logger.debug(f"Built {op} clause: {clause}")
-    return clause
+    cond = {op: val} if col is None else {col: {op: val}}
+    logger.debug(f"Built {op} condition: {cond}")
+    return cond
 
 
-def _build_multivalue_clause(val: Any, op: str, col: str = None):
-    """Builds clauses for operations that should be split by word"""
-    clauses = []
+def _build_multivalue_cond(val: Any, op: str, col: str = None):
+    """Builds conditions for operations that should be split by word"""
+    conds = []
     for val in [val] if isinstance(val, str) else val:
-        clause = _build_clause(val.split(" "), col=col, op=op)
+        cond = _build_cond(val.split(" "), col=col, op=op)
         try:
-            clause = {"AND": clause.pop("OR")}
+            cond = {"AND": cond.pop("OR")}
         except KeyError:
             pass
-        clauses.append(clause)
-    return or_(clauses) if len(clauses) > 1 else clauses[0]
+        conds.append(cond)
+    return or_(conds) if len(conds) > 1 else conds[0]
 
 
 def _val_to_query(
@@ -1036,7 +1036,7 @@ def _val_to_query(
         if isinstance(val, cls_):
             return exact(str(val), col=col, mode=mode_)
 
-    # The mode argument controls how the exact and range clauses handle comparisons
+    # The mode argument controls how the exact and range conditions handle comparisons
     mode = {
         "Date": "date",
         "Time": "time",
@@ -1050,7 +1050,7 @@ def _val_to_query(
         ops = [emu_escape(o) for o in ops]
     ops = "(" + "|".join([re.escape(o) for o in ops]) + ")"
 
-    clauses = []
+    conds = []
 
     # Search for empty fields (null search)
     chars = ["!*", "!+"]
@@ -1058,10 +1058,10 @@ def _val_to_query(
         chars = [emu_escape(n) for n in chars]
     pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
     if re.search(pattern, val):
-        clauses.append(exists(False, col=col))
+        conds.append(exists(False, col=col))
     val = re.sub(pattern, "", val).strip()
     if not val:
-        return and_(clauses) if len(clauses) > 1 else clauses[0]
+        return and_(conds) if len(conds) > 1 else conds[0]
 
     # Search for populated fields
     chars = ["*", "+"]
@@ -1069,10 +1069,10 @@ def _val_to_query(
         chars = [emu_escape(n) for n in chars]
     pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
     if re.search(pattern, val):
-        clauses.append(exists(True, col=col))
+        conds.append(exists(True, col=col))
     val = re.sub(pattern, "", val).strip()
     if not val:
-        return and_(clauses) if len(clauses) > 1 else clauses[0]
+        return and_(conds) if len(conds) > 1 else conds[0]
 
     # Search by stem
     chars = ["~"]
@@ -1081,10 +1081,10 @@ def _val_to_query(
     pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
     match = re.search(pattern, val)
     if match:
-        clauses.append(stemmed(match.group(3), col=col))
+        conds.append(stemmed(match.group(3), col=col))
     val = re.sub(pattern, "", val).strip()
     if not val:
-        return and_(clauses) if len(clauses) > 1 else clauses[0]
+        return and_(conds) if len(conds) > 1 else conds[0]
 
     # Search phonetically
     chars = ["@"]
@@ -1093,10 +1093,10 @@ def _val_to_query(
     pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
     match = re.search(pattern, val)
     if match:
-        clauses.append(phonetic(match.group(3), col=col))
+        conds.append(phonetic(match.group(3), col=col))
     val = re.sub(pattern, "", val).strip()
     if not val:
-        return and_(clauses) if len(clauses) > 1 else clauses[0]
+        return and_(conds) if len(conds) > 1 else conds[0]
 
     # Search case- and diacritic-sensitively
     chars = ["=", "=="]
@@ -1114,11 +1114,11 @@ def _val_to_query(
     else:
         pattern = rf"{ops}?('(?:.*?)'|\"(?:.*?)\")"
     for op, val_ in re.findall(pattern, val):
-        clause = phrase(val_.strip("\"'\\"), col=col)
-        clauses.append(clause if op.lstrip("\\") != "!" else not_(clause))
+        cond = phrase(val_.strip("\"'\\"), col=col)
+        conds.append(cond if op.lstrip("\\") != "!" else not_(cond))
     val = re.sub(pattern, "", val).strip()
     if not val:
-        return and_(clauses) if len(clauses) > 1 else clauses[0]
+        return and_(conds) if len(conds) > 1 else conds[0]
 
     # Words and numbers
     pattern = f"{ops}?(.*)"
@@ -1130,19 +1130,19 @@ def _val_to_query(
             ranges[op] = val
         else:
             if to_type != str or mode:
-                clause = exact(to_type(val), col=col, mode=mode)
+                cond = exact(to_type(val), col=col, mode=mode)
             else:
-                clause = contains(to_type(val), col=col)
-            clauses.append(clause if op.lstrip("\\") != "!" else not_(clause))
+                cond = contains(to_type(val), col=col)
+            conds.append(cond if op.lstrip("\\") != "!" else not_(cond))
 
     # Ranges
     if ranges:
         mapping = {">=": "gte", ">": "gt", "<=": "lte", "<": "lt"}
         kwargs = {mapping[k]: to_type(v) for k, v in ranges.items()}
         kwargs["mode"] = mode
-        clauses.append(range_(col=col, **kwargs))
+        conds.append(range_(col=col, **kwargs))
 
-    return and_(clauses) if len(clauses) > 1 else clauses[0]
+    return and_(conds) if len(conds) > 1 else conds[0]
 
 
 def _parse_api(val, module, key=None, mapped=None):
