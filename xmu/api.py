@@ -165,7 +165,8 @@ class EMuAPI:
             using a set of rules modeled on EMu client searches.
         limit: int, default=10
             the number of records to return per page
-        cursor_type: strc, default="server"
+        cursor_type: str, default="server"
+            whether the cursor is stored locally or on the server
 
         Yields
         ------
@@ -178,7 +179,7 @@ class EMuAPI:
             sort=sort_,
             filter=filter_,
             limit=limit,
-            cursor_type=cursor_type,
+            cursorType=cursor_type,
         )
         return self.get(
             urljoin(self.base_url, module).rstrip("/"), data=params, select=select
