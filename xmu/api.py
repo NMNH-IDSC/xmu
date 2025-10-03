@@ -725,6 +725,8 @@ def emu_escape(val: str) -> str:
     for item in ['"', "'", "!", "[", "]", "^", "$", "*", "+", "~", "@", "=", "=="]:
         val = val.replace(item, rf"\{item}")
     val = val.replace(r"=\=", "==")
+    val = val.replace(r">\=", ">=")
+    val = val.replace(r"<\=", "<=")
     return val
 
 
