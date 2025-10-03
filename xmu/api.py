@@ -242,6 +242,8 @@ class EMuAPIResponse:
                     for match in resp.json()["matches"]:
                         yield self._get(match["data"], resp)
                 except Exception as exc:
+                    if "@error" in resp.json():
+                        raise ValueError(f"Error: {resp.json()}")
                     try:
                         raise ValueError(
                             f"Could not parse match: {match} from {repr(resp.text)}"
@@ -251,7 +253,7 @@ class EMuAPIResponse:
                             f"No records found: {repr(resp.text)} ({resp.request.url})"
                         ) from exc
                 else:
-                    # Get
+                    # Get the next page
                     if self._api.autopage:
                         try:
                             resp = resp.next_page()
