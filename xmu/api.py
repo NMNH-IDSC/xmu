@@ -356,14 +356,15 @@ class EMuAPIResponse:
         EMuAPIResponse
             the result from the next page
         """
-        limit = int(self.params.get("limit", [10])[0])
-        if len(self) != limit:
-            raise ValueError(f"Last page (num_results={len(self)}, limit={limit})")
-        return self._api.get(
-            self.url,
-            data=self.request.body,
-            headers={"Next-Search": self.headers["Next-Search"]},
-        )
+        try:
+            resp = self._api.get(
+                self.url,
+                data=self.request.body,
+                headers={"Next-Search": self.headers["Next-Search"]},
+            )
+        except KeyError:
+            raise ValueError("Next-Search not found in headers")
+        return resp
 
     def _get(self, rec, resp=None):
         """Reads and parses a single record from a response"""
