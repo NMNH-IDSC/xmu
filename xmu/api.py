@@ -259,19 +259,22 @@ class EMuAPIResponse:
 
     def __iter__(self):
         try:
-            yield self._get(self.json()["data"])
+            resp_json = self.json()
         except json.JSONDecodeError:
             raise ValueError(
                 f"Response cannot be decoded: {repr(self.text)} (status_code={self.status_code})"
             )
+
+        try:
+            yield self._get(resp_json["data"])
         except KeyError:
             resp = self
             while True:
                 try:
-                    for match in resp.json()["matches"]:
+                    for match in resp_json["matches"]:
                         yield self._get(match["data"], resp)
                 except Exception as exc:
-                    if "@error" in resp.json():
+                    if "@error" in resp_json:
                         raise ValueError(f"Error: {resp.json()}")
                     try:
                         raise ValueError(
@@ -286,6 +289,7 @@ class EMuAPIResponse:
                     if self._api.autopage:
                         try:
                             resp = resp.next_page()
+                            resp_json = resp.json()
                         except ValueError:
                             break
                         else:
