@@ -345,7 +345,7 @@ class EMuAPIResponse:
             the first record. If a rec_class is specified, the record will use that
             class.
         """
-        for rec in iter(self):
+        for rec in self:
             return rec
 
     def next_page(self):
