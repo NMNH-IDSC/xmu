@@ -372,13 +372,13 @@ class EMuAPIResponse:
             resp = self
         key = rec["irn"]
         try:
-            return self.__class__.cache[key]
+            return resp.__class__.cache[key]
         except KeyError:
             if resp._api.parser is not None:
-                rec = self._api.parser.parse(
+                rec = resp._api.parser.parse(
                     rec, module=resp.module, select=resp._select
                 )
-            self.__class__.cache[key] = rec
+            resp.__class__.cache[key] = rec
             return rec
 
 
