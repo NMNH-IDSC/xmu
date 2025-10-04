@@ -297,6 +297,8 @@ class EMuAPIResponse:
                                 logger.debug("Response is from cache")
                             else:
                                 logger.debug("Response is from server")
+                    else:
+                        break
 
     @property
     def module(self):
