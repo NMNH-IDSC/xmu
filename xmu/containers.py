@@ -337,7 +337,7 @@ class EMuSchema(dict):
 
         if not args or kwargs:
             try:
-                args = [self.config["schema_path"]]
+                args = [os.path.expandvars(self.config["schema_path"])]
             except TypeError:
                 pass
 
@@ -447,7 +447,7 @@ class EMuSchema(dict):
         Parameters
         ----------
         path : str
-            path to a schema filenumpy docstring returns
+            path to a schema file
         """
         self.path = path
         path = os.path.splitext(path)[0]
