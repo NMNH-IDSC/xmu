@@ -1191,11 +1191,8 @@ def _parse_api(val, module, key=None, mapped=None):
     if mapped is None:
         mapped = {}
 
-    if key:
-        try:
-            key = EMuAPI.schema.map_short_name(module, key)
-        except KeyError:
-            pass
+    if key and not key.endswith(("_grp", "_subgrp")):
+        key = EMuAPI.schema.map_short_name(module, key)
 
     # Iterate dicts
     if isinstance(val, dict):
