@@ -1084,7 +1084,7 @@ def _val_to_query(
     chars = ["!*", "!+"]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
+    pattern = r"(^|\b|\s)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|\s|$)"
     if re.search(pattern, val):
         conds.append(exists(False, col=col))
     val = re.sub(pattern, "", val).strip()
@@ -1107,7 +1107,7 @@ def _val_to_query(
     chars = ["*", "+"]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
+    pattern = r"(^|\b|\s)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|\s|$)"
     if re.search(pattern, val):
         conds.append(exists(True, col=col))
     val = re.sub(pattern, "", val).strip()
@@ -1118,7 +1118,7 @@ def _val_to_query(
     chars = ["~"]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    pattern = r"(^|\b|\s)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
     match = re.search(pattern, val)
     if match:
         conds.append(stemmed(match.group(3), col=col))
@@ -1142,7 +1142,7 @@ def _val_to_query(
     chars = ["=", "=="]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    pattern = r"(^|\b|\s)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
     if re.search(pattern, val):
         raise ValueError(
             "Case- and diacritic-sensitive searches are not supported by the API"
