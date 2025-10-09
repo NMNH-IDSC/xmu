@@ -376,7 +376,7 @@ class EMuSchema(dict):
             for module, groups in self.config["calculated_fields"].items():
                 groups = list(groups.values())
                 for field in chain.from_iterable(groups):
-                    self.get_field_info(module, field)["GroupCalculated"] = groups
+                    _get_field_info(module, field)["XMuGroupCalculated"] = groups
 
             # Add entries for reverse attachment fields to the schema
             for mod, fields in self.config["reverse_attachments"].items():
@@ -472,9 +472,7 @@ class EMuSchema(dict):
                         fields = list({_map_view(module, f): 1 for f in fields})
                         data["groups"][key] = fields
                         for field in fields:
-                            self.get_field_info(module, field)["GroupFieldsOrig"] = (
-                                fields[:]
-                            )
+                            _get_field_info(module, field)["XMuGroupOrig"] = fields[:]
 
             self.to_json(f"{path}.json")
 
@@ -549,7 +547,7 @@ class EMuSchema(dict):
         fields = list({_map_view(module, f): 1 for f in fields})
         for field in fields[:]:
             # Combine groups that share one or more fields
-            info = self.get_field_info(module, field)
+            info = _get_field_info(module, field)
             fields_ = info.get("GroupFields", [])
             if fields_:
                 # Update each group so that they contain the same fields
@@ -922,7 +920,7 @@ class EMuRow(MutableMapping):
 
     def __init__(self, rec: EMuRecord, path: str, index: int, fill_value: Any = None):
         module = _get_module(rec)
-        info = self.schema.get_field_info(module, path)
+        info = _get_field_info(module, path)
         self.group = tuple(info.get("GroupFields", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
@@ -1034,7 +1032,7 @@ class EMuGrid(MutableSequence):
 
     def __init__(self, rec: EMuRecord, path: str, fill_value: Any = None):
         module = _get_module(rec)
-        info = self.schema.get_field_info(module, path)
+        info = _get_field_info(module, path)
         self.group = tuple(info.get("GroupFields", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
@@ -1351,7 +1349,7 @@ class EMuRecord(dict):
             dotpath = ".".join(path)
             if module and self.schema is not None and self.schema.validate_paths:
                 try:
-                    self.schema.get_field_info(module, path)
+                    _get_field_info(module, path)
                 except KeyError:
                     raise KeyError(
                         f"Invalid path: {dotpath} (module={module})"
@@ -1486,7 +1484,7 @@ class EMuRecord(dict):
             module = _get_module(self)
             if self.schema is not None and self.schema.validate_paths:
                 while True:
-                    field_info = self.schema.get_field_info(module, key)
+                    field_info = _get_field_info(module, key)
                     try:
                         lookup_parent = field_info["LookupParent"]
                     except KeyError:
@@ -1580,7 +1578,7 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
     # Validate field if schema has been loaded
     field_info = None
     if parent.schema and parent.schema.validate_paths:
-        field_info = parent.schema.get_field_info(module, key if key else field)
+        field_info = _get_field_info(module, key if key else field)
 
     # Label inner nested tables
     if is_nesttab(field) and not isinstance(parent, dict_class):
@@ -1805,7 +1803,7 @@ def _get_module(obj: EMuRecord | EMuColumn, field: str = None) -> str:
     if field is None:
         field = obj.field
     if obj.schema is not None and field is not None and is_ref(field):
-        return obj.schema.get_field_info(obj.module, field)["RefTable"]
+        return _get_field_info(obj.module, field)["RefTable"]
     return obj.module
 
 
