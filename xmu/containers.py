@@ -338,7 +338,7 @@ class EMuSchema(dict):
 
         if not args or kwargs:
             try:
-                args = [self.config["schema_path"]]
+                args = [os.path.expandvars(self.config["schema_path"])]
             except TypeError:
                 pass
 
@@ -378,7 +378,7 @@ class EMuSchema(dict):
             for module, groups in self.config["calculated_fields"].items():
                 groups = list(groups.values())
                 for field in chain.from_iterable(groups):
-                    self.get_field_info(module, field)["GroupCalculated"] = groups
+                    _get_field_info(module, field)["XMuGroupCalculated"] = groups
 
             # Add entries for reverse attachment fields to the schema
             for mod, fields in self.config["reverse_attachments"].items():
@@ -449,7 +449,7 @@ class EMuSchema(dict):
         Parameters
         ----------
         path : str
-            path to a schema filenumpy docstring returns
+            path to a schema file
         """
         self.path = path
         path = os.path.splitext(path)[0]
@@ -474,9 +474,7 @@ class EMuSchema(dict):
                         fields = list({_map_view(module, f): 1 for f in fields})
                         data["groups"][key] = fields
                         for field in fields:
-                            self.get_field_info(module, field)["GroupFieldsOrig"] = (
-                                fields[:]
-                            )
+                            _get_field_info(module, field)["XMuGroupOrig"] = fields[:]
 
             self.to_json(f"{path}.json")
 
@@ -522,7 +520,18 @@ class EMuSchema(dict):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self, f, **params)
 
-    def iterfields(self) -> Generator[str, str, dict]:
+    def fields(self) -> Generator:
+        """Iterates over all modules and fields
+
+        Yields
+        ------
+        tuple
+            module name, fields
+        """
+        for mod, mod_info in self["Schema"].items():
+            yield mod, (f for f in mod_info["columns"].values())
+
+    def walk(self) -> Generator[str, str, dict]:
         """Iterates over all fields in the schema
 
         Yields
@@ -551,8 +560,8 @@ class EMuSchema(dict):
         fields = list({_map_view(module, f): 1 for f in fields})
         for field in fields[:]:
             # Combine groups that share one or more fields
-            info = self.get_field_info(module, field)
-            fields_ = info.get("GroupFields", [])
+            info = _get_field_info(module, field)
+            fields_ = info.get("XMuGroup", [])
             if fields_:
                 # Update each group so that they contain the same fields
                 a = set(fields)
@@ -562,7 +571,7 @@ class EMuSchema(dict):
                 fields.extend([f for f in fields_ if f not in fields])
                 fields_.extend([f for f in fields if f not in fields_])
             else:
-                info["GroupFields"] = fields
+                info["XMuGroup"] = fields
 
         # Field definitions modified, so clear the cache
         _get_field_info.cache_clear()
@@ -613,6 +622,37 @@ class EMuSchema(dict):
             The full column name
         """
         return _map_short_name(module, key)
+
+    @staticmethod
+    def get_client_path(module: str, path: str | list[str]):
+        """Gets the client path for a given field or path
+
+        Parameters
+        ----------
+        module : str
+            backend module name
+        path : str
+            path to the field in EMu
+
+        Returns
+        -------
+        str
+            the path to the field in the format used by EMu, for example, in
+            the estandards module
+        """
+        if not isinstance(path, list):
+            path = re.split("[./]", path)
+        client_path = []
+        for segment in path:
+            # Skip module names if present
+            if segment.startswith("e"):
+                continue
+            if is_nesttab(segment):
+                segment += "&" + segment.replace("_nesttab", "_tab")
+            client_path.append(segment)
+            if is_ref(segment):
+                client_path.append(_get_field_info(module, segment)["RefTable"])
+        return ".".join(client_path)
 
     @staticmethod
     def get_group_info(module: str, path: str | list[str]) -> dict:
@@ -924,8 +964,8 @@ class EMuRow(MutableMapping):
 
     def __init__(self, rec: EMuRecord, path: str, index: int, fill_value: Any = None):
         module = _get_module(rec)
-        info = self.schema.get_field_info(module, path)
-        self.group = tuple(info.get("GroupFields", []))
+        info = _get_field_info(module, path)
+        self.group = tuple(info.get("XMuGroup", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
         self.fill_value = fill_value
@@ -1036,12 +1076,12 @@ class EMuGrid(MutableSequence):
 
     def __init__(self, rec: EMuRecord, path: str, fill_value: Any = None):
         module = _get_module(rec)
-        info = self.schema.get_field_info(module, path)
-        self.group = tuple(info.get("GroupFields", []))
+        info = _get_field_info(module, path)
+        self.group = tuple(info.get("XMuGroup", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
-        self.orig_group = tuple(info.get("GroupFieldsOrig", []))
-        self.calculated_fields = tuple(info.get("GroupCalculated", []))
+        self.orig_group = tuple(info.get("XMuGroupOrig", []))
+        self.calculated_fields = tuple(info.get("XMuGroupCalculated", []))
         self.fill_value = fill_value
 
         # Use path to drill down to the correct parent record
@@ -1353,7 +1393,7 @@ class EMuRecord(dict):
             dotpath = ".".join(path)
             if module and self.schema is not None and self.schema.validate_paths:
                 try:
-                    self.schema.get_field_info(module, path)
+                    _get_field_info(module, path)
                 except KeyError:
                     raise KeyError(
                         f"Invalid path: {dotpath} (module={module})"
@@ -1488,7 +1528,7 @@ class EMuRecord(dict):
             module = _get_module(self)
             if self.schema is not None and self.schema.validate_paths:
                 while True:
-                    field_info = self.schema.get_field_info(module, key)
+                    field_info = _get_field_info(module, key)
                     try:
                         lookup_parent = field_info["LookupParent"]
                     except KeyError:
@@ -1582,7 +1622,7 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
     # Validate field if schema has been loaded
     field_info = None
     if parent.schema and parent.schema.validate_paths:
-        field_info = parent.schema.get_field_info(module, key if key else field)
+        field_info = _get_field_info(module, key if key else field)
 
     # Label inner nested tables
     if is_nesttab(field) and not isinstance(parent, dict_class):
@@ -1729,6 +1769,7 @@ def _get_field_info(
     segments = _split_path(path)
     modules = [module]
     for seg in segments:
+        seg = seg.split("&")[0]
         obj = schema[
             ("Schema", modules[-1], "columns", strip_mod(seg).replace("_inner", ""))
         ]
@@ -1774,7 +1815,7 @@ def _map_short_name(module: str, key: str) -> str:
         "Ref",
         "Ref_tab",
         "_nesttab",
-        "Ref_nesstab",
+        "Ref_nesttab",
     ):
         try:
             _get_field_info(module, key + suffix)
@@ -1807,7 +1848,7 @@ def _get_module(obj: EMuRecord | EMuColumn, field: str = None) -> str:
     if field is None:
         field = obj.field
     if obj.schema is not None and field is not None and is_ref(field):
-        return obj.schema.get_field_info(obj.module, field)["RefTable"]
+        return _get_field_info(obj.module, field)["RefTable"]
     return obj.module
 
 
