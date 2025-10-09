@@ -1782,7 +1782,7 @@ def _map_short_name(module: str, key: str) -> str:
         "Ref",
         "Ref_tab",
         "_nesttab",
-        "Ref_nesstab",
+        "Ref_nesttab",
     ):
         try:
             _get_field_info(module, key + suffix)
