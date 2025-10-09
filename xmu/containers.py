@@ -548,7 +548,7 @@ class EMuSchema(dict):
         for field in fields[:]:
             # Combine groups that share one or more fields
             info = _get_field_info(module, field)
-            fields_ = info.get("GroupFields", [])
+            fields_ = info.get("XMuGroup", [])
             if fields_:
                 # Update each group so that they contain the same fields
                 a = set(fields)
@@ -558,7 +558,7 @@ class EMuSchema(dict):
                 fields.extend([f for f in fields_ if f not in fields])
                 fields_.extend([f for f in fields if f not in fields_])
             else:
-                info["GroupFields"] = fields
+                info["XMuGroup"] = fields
 
         # Field definitions modified, so clear the cache
         _get_field_info.cache_clear()
@@ -921,7 +921,7 @@ class EMuRow(MutableMapping):
     def __init__(self, rec: EMuRecord, path: str, index: int, fill_value: Any = None):
         module = _get_module(rec)
         info = _get_field_info(module, path)
-        self.group = tuple(info.get("GroupFields", []))
+        self.group = tuple(info.get("XMuGroup", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
         self.fill_value = fill_value
@@ -1033,11 +1033,11 @@ class EMuGrid(MutableSequence):
     def __init__(self, rec: EMuRecord, path: str, fill_value: Any = None):
         module = _get_module(rec)
         info = _get_field_info(module, path)
-        self.group = tuple(info.get("GroupFields", []))
+        self.group = tuple(info.get("XMuGroup", []))
         if not self.group:
             raise KeyError(f"{module}.{path} is not part of a group")
-        self.orig_group = tuple(info.get("GroupFieldsOrig", []))
-        self.calculated_fields = tuple(info.get("GroupCalculated", []))
+        self.orig_group = tuple(info.get("XMuGroupOrig", []))
+        self.calculated_fields = tuple(info.get("XMuGroupCalculated", []))
         self.fill_value = fill_value
 
         # Use path to drill down to the correct parent record

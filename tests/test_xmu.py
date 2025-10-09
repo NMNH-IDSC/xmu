@@ -568,13 +568,13 @@ def test_schema_get(schema_file):
         "DataType": "Date",
         "ItemName": "EmuDate0",
         "ItemFields": [[8, 2, 2], [8, 2, 2], [8, 2, 2]],
-        "GroupFields": [
+        "XMuGroup": [
             "EmuDate0",
             "EmuNestedTable_nesttab",
             "EmuTable_tab",
             "EmuRef_tab",
         ],
-        "GroupFieldsOrig": ["EmuDate0", "EmuRef_tab"],
+        "XMuGroupOrig": ["EmuDate0", "EmuRef_tab"],
     }
     assert schema.get("Schema.emain.columns.EmuInvalid") is None
 
@@ -780,10 +780,8 @@ def test_grid_del_item(rec):
 
 
 def test_grid_from_client_table(rec):
-    assert "GroupFields" in rec.schema.get_field_info(
-        rec.module, "EmuClientTable1Ref_tab"
-    )
-    assert "GroupFields" not in rec.schema.get_field_info(
+    assert "XMuGroup" in rec.schema.get_field_info(rec.module, "EmuClientTable1Ref_tab")
+    assert "XMuGroup" not in rec.schema.get_field_info(
         rec.module, "EmuClientTable2Ref_tab"
     )
 
