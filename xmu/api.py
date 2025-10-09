@@ -500,20 +500,22 @@ def or_(conds: list[dict]) -> dict:
     return {"OR": conds}
 
 
-def not_(cond: dict) -> dict:
+def not_(conds: dict) -> dict:
     """Negates a condition
 
     Parameters
     ----------
-    conds : dict
-        a condition
+    conds : list[dict] | dict
+        list of conditions
 
     Returns
     -------
     dict
         {"NOT": conds}
     """
-    return {"NOT": cond}
+    if not isinstance(conds, (list, tuple)):
+        conds = [conds]
+    return {"NOT": conds}
 
 
 def contains(val: str | list[str], col: str = None) -> dict:
@@ -872,8 +874,10 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
         if isinstance(val, dict):
             for key in list(val):
                 vals = val[key]
-                if key in ("AND", "OR", "NOT"):
+                if key in ("AND", "OR"):
                     val[key] = [{_prep_field(col): v} for v in vals]
+                elif key == "NOT":
+                    val[key] = [_val_to_query(col, v) for v in vals]
                 else:
                     val[_prep_field(col)] = {key: vals}
                     del val[key]
@@ -905,7 +909,10 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
             stmts.append(val[0])
 
     # Filter must include a boolean operator even if there is only one element
-    param = json.dumps(and_(stmts))
+    if len(stmts) == 1 and list(stmts[0])[0] in ("AND", "OR", "NOT"):
+        param = json.dumps(stmts[0])
+    else:
+        param = json.dumps(and_(stmts))
     logger.debug(f"Prepped filter as {repr(param)}")
     return param
 
@@ -1080,6 +1087,18 @@ def _val_to_query(
     pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")(\b|$)"
     if re.search(pattern, val):
         conds.append(exists(False, col=col))
+    val = re.sub(pattern, "", val).strip()
+    if not val:
+        return and_(conds) if len(conds) > 1 else conds[0]
+
+    # Search for not
+    chars = ["!"]
+    if use_emu_syntax:
+        chars = [emu_escape(n) for n in chars]
+    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    match = re.search(pattern, val)
+    if match:
+        conds.append(not_(_val_to_query(col, match.group(3))))
     val = re.sub(pattern, "", val).strip()
     if not val:
         return and_(conds) if len(conds) > 1 else conds[0]
