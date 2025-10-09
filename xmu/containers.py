@@ -1736,6 +1736,7 @@ def _get_field_info(
     segments = _split_path(path)
     modules = [module]
     for seg in segments:
+        seg = seg.split("&")[0]
         obj = schema[
             ("Schema", modules[-1], "columns", strip_mod(seg).replace("_inner", ""))
         ]
