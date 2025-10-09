@@ -622,6 +622,37 @@ class EMuSchema(dict):
         return _map_short_name(module, key)
 
     @staticmethod
+    def get_client_path(module: str, path: str | list[str]):
+        """Gets the client path for a given field or path
+
+        Parameters
+        ----------
+        module : str
+            backend module name
+        path : str
+            path to the field in EMu
+
+        Returns
+        -------
+        str
+            the path to the field in the format used by EMu, for example, in
+            the estandards module
+        """
+        if not isinstance(path, list):
+            path = re.split("[./]", path)
+        client_path = []
+        for segment in path:
+            # Skip module names if present
+            if segment.startswith("e"):
+                continue
+            if is_nesttab(segment):
+                segment += "&" + segment.replace("_nesttab", "_tab")
+            client_path.append(segment)
+            if is_ref(segment):
+                client_path.append(_get_field_info(module, segment)["RefTable"])
+        return ".".join(client_path)
+
+    @staticmethod
     def get_group_info(module: str, path: str | list[str]) -> dict:
         """Gets data about the field specified by a path
 

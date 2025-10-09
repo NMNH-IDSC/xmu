@@ -614,6 +614,23 @@ def test_schema_iterfields(schema_file):
     ]
 
 
+@pytest.mark.parametrize(
+    "module,path,expected",
+    [
+        ("emain", "EmuRef.EmuRefOnly", "EmuRef.eref.EmuRefOnly"),
+        (
+            "emain",
+            "EmuNestedRef_nesttab.EmuRefOnly",
+            "EmuNestedRef_nesttab&EmuNestedRef_tab.eref.EmuRefOnly",
+        ),
+    ],
+)
+def test_schema_get_client_path(module, path, expected, schema_file):
+    schema = EMuSchema(schema_file)
+    assert schema.get_client_path(module, path) == expected
+    assert schema.get_client_path(module, expected) == expected
+
+
 def test_schema_getitem_bad_module(schema_file):
     match = (
         r"Path not found: \('Schema', 'einvalid', 'columns', 'EmuText'\)"
