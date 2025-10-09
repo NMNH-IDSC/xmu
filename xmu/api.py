@@ -4,6 +4,7 @@ import getpass
 import json
 import logging
 import re
+from functools import cached_property
 from typing import Any
 from urllib.parse import unquote_plus, urljoin
 
@@ -239,8 +240,6 @@ class EMuAPI:
 class EMuAPIResponse:
     """Wraps a response from the EMu API response"""
 
-    cache = {}
-
     def __init__(
         self,
         response: requests.Response,
@@ -250,6 +249,7 @@ class EMuAPIResponse:
         self._response = response
         self._api = api
         self._select = select
+        self._json = None
 
     def __getattr__(self, attr):
         try:
@@ -263,24 +263,26 @@ class EMuAPIResponse:
         return len(json.loads(self.headers["Next-Offsets"]))
 
     def __iter__(self):
-        try:
-            resp_json = self.json()
-        except json.JSONDecodeError:
-            raise ValueError(
-                f"Response cannot be decoded: {repr(self.text)} (status_code={self.status_code})"
-            )
 
         try:
-            yield self._get(resp_json["data"])
+            rec = self.json()["data"]
+            if self._api.parser is not None:
+                rec = self._api.parser.parse(
+                    rec, module=self.module, select=self._select
+                )
+            yield rec
         except KeyError:
             resp = self
             while True:
                 try:
-                    for match in resp_json["matches"]:
-                        yield self._get(match["data"], resp)
+                    for match in resp.json()["matches"]:
+                        rec = match["data"]
+                        if resp._api.parser is not None:
+                            rec = resp._api.parser.parse(
+                                rec, module=resp.module, select=resp._select
+                            )
+                        yield rec
                 except Exception as exc:
-                    if "@error" in resp_json:
-                        raise ValueError(f"Error: {resp.json()}")
                     try:
                         raise ValueError(
                             f"Could not parse match: {match} from {repr(resp.text)}"
@@ -291,10 +293,9 @@ class EMuAPIResponse:
                         ) from exc
                 else:
                     # Get the next page
-                    if self._api.autopage:
+                    if resp._api.autopage:
                         try:
                             resp = resp.next_page()
-                            resp_json = resp.json()
                         except ValueError:
                             break
                         else:
@@ -305,7 +306,7 @@ class EMuAPIResponse:
                     else:
                         break
 
-    @property
+    @cached_property
     def module(self):
         """The EMu module queried to create the response"""
         try:
@@ -313,10 +314,12 @@ class EMuAPIResponse:
         except KeyError:
             return self.json()["matches"][0]["id"].split("/")[-2]
 
-    @property
+    @cached_property
     def params(self):
         """The query parameters used to make the request"""
         body = self.request.body
+        if not body:
+            return {}
         # Decode the request body if using requests_cache
         try:
             body = body.decode("utf-8")
@@ -332,6 +335,27 @@ class EMuAPIResponse:
                 pass
             params.setdefault(key, []).append(val)
         return params
+
+    @cached_property
+    def hits(self):
+        try:
+            return self.json()["hits"]
+        except KeyError:
+            return 0
+
+    def json(self):
+        """Parse JSON from response"""
+        if self._json is None:
+            try:
+                self._json = self._response.json()
+            except json.JSONDecodeError:
+                raise ValueError(
+                    f"Response cannot be decoded: {repr(self.text)} (status_code={self.status_code})"
+                )
+            else:
+                if "@error" in self._json:
+                    raise ValueError(f"Error: {self._json}")
+        return self._json
 
     def records(self):
         """Gets a mapping of all records in the result set by IRN
@@ -372,21 +396,6 @@ class EMuAPIResponse:
         except KeyError:
             raise ValueError("Next-Search not found in headers")
         return resp
-
-    def _get(self, rec, resp=None):
-        """Reads and parses a single record from a response"""
-        if resp is None:
-            resp = self
-        key = rec["irn"]
-        try:
-            return resp.__class__.cache[key]
-        except KeyError:
-            if resp._api.parser is not None:
-                rec = resp._api.parser.parse(
-                    rec, module=resp.module, select=resp._select
-                )
-            resp.__class__.cache[key] = rec
-            return rec
 
 
 class EMuAPIParser:
