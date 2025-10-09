@@ -229,6 +229,8 @@ class EMuAPI:
             params["filter"] = _prep_filter(
                 kwargs["module"], kwargs["filter"], self.use_emu_syntax
             )
+        else:
+            params["filter"] = {}
 
         for key in ("limit", "cursorType"):
             if kwargs.get(key):
@@ -448,7 +450,7 @@ class EMuAPIParser:
         """
         for key, val in rec.items():
             if is_ref(key):
-                field_info = self._api.schema.get_field_info(self.module, key)
+                field_info = EMuAPI.schema.get_field_info(self.module, key)
                 try:
                     select_ = select[key]
                 except (KeyError, TypeError):
@@ -1046,7 +1048,7 @@ def _val_to_query(
     to_type = {"Float": float, "Integer": int}.get(data_type, str)
 
     # Simple numeric values can be returned with exact
-    if not data_type or to_type in (float, int):
+    if not data_type and to_type in (float, int):
         if isinstance(val, (float, int)):
             return exact(val, col=col)
         try:
