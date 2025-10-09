@@ -416,6 +416,17 @@ class EMuSchema(dict):
                 ) from exc
         return obj
 
+    def fields(self) -> Generator:
+        """Iterates over all modules and fields
+
+        Yields
+        ------
+        tuple
+            module name, fields
+        """
+        for mod, mod_info in self["Schema"].items():
+            yield mod, (f for f in mod_info["columns"].values())
+
     @property
     def modules(self) -> list[str]:
         """Gets the list of modules in the schema"""
