@@ -252,7 +252,12 @@ class EMuAPIResponse:
         self._select = select
 
     def __getattr__(self, attr):
-        return getattr(self._response, attr)
+        try:
+            return getattr(self._response, attr)
+        except AttributeError:
+            raise AttributeError(
+                f"{repr(self.__class__.__name__)} object has no attribute {repr(attr)}"
+            )
 
     def __len__(self):
         return len(json.loads(self.headers["Next-Offsets"]))
