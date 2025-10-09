@@ -416,17 +416,6 @@ class EMuSchema(dict):
                 ) from exc
         return obj
 
-    def fields(self) -> Generator:
-        """Iterates over all modules and fields
-
-        Yields
-        ------
-        tuple
-            module name, fields
-        """
-        for mod, mod_info in self["Schema"].items():
-            yield mod, (f for f in mod_info["columns"].values())
-
     @property
     def modules(self) -> list[str]:
         """Gets the list of modules in the schema"""
@@ -529,7 +518,18 @@ class EMuSchema(dict):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self, f, **params)
 
-    def iterfields(self) -> Generator[str, str, dict]:
+    def fields(self) -> Generator:
+        """Iterates over all modules and fields
+
+        Yields
+        ------
+        tuple
+            module name, fields
+        """
+        for mod, mod_info in self["Schema"].items():
+            yield mod, (f for f in mod_info["columns"].values())
+
+    def walk(self) -> Generator[str, str, dict]:
         """Iterates over all fields in the schema
 
         Yields
