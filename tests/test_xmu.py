@@ -2127,6 +2127,7 @@ def test_dtype_coord_invalid_seconds():
     [
         ("AtomField", False),
         ("AtomFieldRef", False),
+        ("AtomField000", False),
         ("TableField0", True),
         ("TableField_nesttab", True),
         ("TableField_nesttab_inner", True),

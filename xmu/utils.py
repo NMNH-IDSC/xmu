@@ -39,7 +39,7 @@ def is_tab(field: str) -> bool:
     bool
         True if field name is a table, False if not
     """
-    return strip_mod(field).endswith(TAB_SUFFIXES)
+    return strip_mod(field).endswith(TAB_SUFFIXES) and not field[-2:].isnumeric()
 
 
 @cache
