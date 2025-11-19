@@ -1,10 +1,12 @@
 """Defines tools to work with the EMu API"""
 
-import getpass
 import json
 import logging
 import re
-from functools import cached_property
+import time
+import tomllib
+from functools import cache, cached_property
+from pathlib import Path
 from typing import Any
 from urllib.parse import unquote_plus, urljoin
 
@@ -25,20 +27,22 @@ class EMuAPI:
 
     Parameters
     ----------
-    url : str
+    url : str, optional
         the url for the EMu API, including tenant
     username : str, optional
         an EMu username. If omitted, defaults to the current OS username.
     password : str, optional
         the password for the given username, If omitted, the user will be
         prompted for the password when the class is initiated.
+    autopage : bool = True
+        whether to automatically page through results if the total number of results
+        exceeds the limit of a given request
+    config_path : str | Path
+        path to a TOML config file used to set url, username, password, and autopage
     parser : EMuAPIParser, optional
         the parser object used to parse individual records. The default EMuAPIParser
         class returns a close approximation of the format used by EMuRecord. If None,
         records will be returned as formatted by the API.
-    autopage : bool = True
-        whether to automatically page through results if the total number of results
-        exceeds the limit of a given request
 
     Attributes
     ----------
@@ -53,14 +57,34 @@ class EMuAPI:
 
     def __init__(
         self,
-        url: str,
+        url: str = None,
         username: str = None,
         password: str = None,
+        autopage: bool = None,
+        config_path: str | Path = "emuapi.toml",
         parser: "EMuAPIParser" = None,
-        autopage: bool = True,
     ):
+        self.config_path = config_path
+        try:
+            with open(self.config_path, "rb") as f:
+                config = tomllib.load(f)["params"]
+        except FileNotFoundError:
+            self.base_url = url.rstrip("/") + "/"
+        else:
+            if not url:
+                url = config["url"]
+            if not username:
+                username = config["username"]
+            if not password:
+                password = config["password"]
+            if autopage is None:
+                autopage = config["autopage"]
+
         self.base_url = url.rstrip("/") + "/"
         self.use_emu_syntax = True
+
+        # Parse must be assigned when the instance is created
+        self._parser = None
         self.parser = parser
 
         # The autopage parameter is passed to EMuAPIResponse but it is cleaner
@@ -68,17 +92,21 @@ class EMuAPI:
         self.autopage = autopage
 
         # Get token
-        self._token = requests.post(
-            urljoin(self.base_url, "tokens"),
-            json={
-                "username": getpass.getuser() if username is None else username,
-                "password": getpass.getpass() if password is None else password,
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=TIMEOUT,
-        ).headers["Authorization"]
+        self._token = None
+        self.get_token(username=username, password=password)
 
         self._session = None
+
+    @property
+    def parser(self):
+        """The parser object used to parse records returned by the API"""
+        return self._parser
+
+    @parser.setter
+    def parser(self, val):
+        self._parser = val
+        if val:
+            self._parser.api = self
 
     @property
     def session(self):
@@ -90,6 +118,57 @@ class EMuAPI:
     @session.setter
     def session(self, val):
         self._session = val
+
+    def get_token(self, refresh=False, **kwargs):
+        """Retrieves a token from the server to authorize requests
+
+        Parameters
+        ----------
+        kwargs :
+            username and password if no config file is found
+
+        Returns
+        -------
+        str
+            the authorization token need to make API requests
+        """
+        # Token requests sometimes fail, particularly if several are done quickly.
+        # To prevent this, the token is cached to a file in the working directory when
+        # it is read.
+        if refresh:
+            print("Refreshing token")
+        else:
+            try:
+                with open("token") as f:
+                    self._token = f.read().strip()
+                return self._token
+            except FileNotFoundError:
+                pass
+
+        if not kwargs:
+            with open(self.config_path, "rb") as f:
+                kwargs = tomllib.load(f)["params"]
+
+        resp = requests.post(
+            urljoin(self.base_url, "tokens"),
+            json={
+                "username": kwargs["username"],
+                "password": kwargs["password"],
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=TIMEOUT,
+        )
+
+        try:
+            self._token = resp.headers["Authorization"]
+        except KeyError:
+            raise ValueError(
+                f"Token request failed: {resp.url} (status_code={resp.status_code})"
+            )
+        else:
+            with open("token", "w") as f:
+                f.write(self._token)
+            return self._token
 
     def get(self, *args, select=None, **kwargs):
         """Performs a GET operation with the proper authorization header
@@ -137,11 +216,15 @@ class EMuAPI:
         )
 
         logger.debug(f"Making GET request: {args[0]} (params={redacted})")
-        return EMuAPIResponse(
+        resp = EMuAPIResponse(
             self.session.post(*args, **kwargs),
             api=self,
             select=select,
         )
+        if resp.status_code == 401:
+            self.get_token(refresh=True)
+            return self.get(*args, select=select, **kwargs)
+        return resp
 
     def retrieve(self, module: str, irn: str | int, select: list[str] = None) -> None:
         """Retrieves a single record from an irn
@@ -160,6 +243,9 @@ class EMuAPI:
         EMuAPIResponse
             the query response
         """
+        # Split irn from API reference notation (emu:{server}/{module}/{irn}))
+        if irn.startswith("emu:"):
+            irn = irn.split("/")[-1]
         url = self.base_url
         for part in [module, str(irn)]:
             url = urljoin(url, part).rstrip("/") + "/"
@@ -248,10 +334,12 @@ class EMuAPIResponse:
         api: EMuAPI,
         select: list[str] | dict[dict] = None,
     ):
+        self.api = api
+        self.select = select
+        self.resolve_attachments = True
         self._response = response
-        self._api = api
-        self._select = select
         self._json = None
+        self._cached = []
 
     def __getattr__(self, attr):
         try:
@@ -266,47 +354,105 @@ class EMuAPIResponse:
 
     def __iter__(self):
 
-        try:
-            rec = self.json()["data"]
-            if self._api.parser is not None:
-                rec = self._api.parser.parse(
-                    rec, module=self.module, select=self._select
-                )
-            yield rec
-        except KeyError:
-            resp = self
-            while True:
-                try:
-                    for match in resp.json()["matches"]:
-                        rec = match["data"]
-                        if resp._api.parser is not None:
-                            rec = resp._api.parser.parse(
-                                rec, module=resp.module, select=resp._select
-                            )
-                        yield rec
-                except Exception as exc:
-                    try:
-                        raise ValueError(
-                            f"Could not parse match: {match} from {repr(resp.text)}"
-                        ) from exc
-                    except NameError:
-                        raise ValueError(
-                            f"No records found: {repr(resp.text)} ({resp.request.url})"
-                        ) from exc
-                else:
-                    # Get the next page
-                    if resp._api.autopage:
-                        try:
-                            resp = resp.next_page()
-                        except ValueError:
-                            break
-                        else:
-                            if hasattr(resp, "from_cache") and resp.from_cache:
-                                logger.debug("Response is from cache")
+        if self._cached:
+            for rec in self._cached:
+                yield rec
+
+        else:
+            try:
+                rec = self.json()["data"]
+                if self.api.parser is not None:
+                    rec = self.api.parser.parse(self.module, rec, select=self.select)
+                elif self.resolve_attachments:
+                    # Resolving attachments individually is slow, so attachments
+                    # are deferred until a number of records have been processed
+                    # OR the user tries to access a key
+                    for key, val in rec.items():
+                        if is_ref(key):
+                            try:
+                                select = self.select[key]
+                            except (KeyError, TypeError):
+                                select = self.select
+                            if isinstance(val, (list, tuple)):
+                                rec[key] = [
+                                    attachment(
+                                        val_, self.api, select=json.dumps(select)
+                                    )
+                                    for val_ in val
+                                ]
                             else:
-                                logger.debug("Response is from server")
+                                rec[key] = attachment(
+                                    val, self.api, select=json.dumps(select)
+                                )
+                self._cached.append(rec)
+                yield rec
+            except KeyError:
+                resp = self
+                while True:
+                    try:
+                        # Return records in batches to make resolving attachments more
+                        # efficient
+                        records = []
+                        for match in resp.json()["matches"]:
+                            rec = match["data"]
+                            if resp.api.parser is not None:
+                                rec = resp.api.parser.parse(
+                                    self.module, rec, select=resp.select
+                                )
+                            elif self.resolve_attachments:
+                                # Resolving attachments individually is slow, so
+                                # attachments are deferred until a number of records
+                                # have been processed OR the user tries to access a key
+                                for key, val in rec.items():
+                                    if is_ref(key):
+                                        try:
+                                            select = resp.select[key]
+                                        except (KeyError, TypeError):
+                                            select = resp.select
+                                        if isinstance(val, (list, tuple)):
+                                            rec[key] = [
+                                                attachment(
+                                                    val_,
+                                                    self.api,
+                                                    select=json.dumps(select),
+                                                )
+                                                for val_ in val
+                                            ]
+                                        else:
+                                            rec[key] = attachment(
+                                                val, self.api, select=json.dumps(select)
+                                            )
+                            self._cached.append(rec)
+                            records.append(rec)
+                            if len(records) >= 1000:
+                                for rec in records:
+                                    yield rec
+                                records = []
+                        for rec in records:
+                            yield rec
+                    except Exception as exc:
+                        try:
+                            raise ValueError(
+                                f"Could not parse match: {match} from {repr(resp.text)}"
+                            ) from exc
+                        except NameError:
+                            raise ValueError(
+                                f"No records found: {repr(resp.text)} ({resp.request.url})"
+                            ) from exc
                     else:
-                        break
+                        # Get the next page
+                        if resp.api.autopage:
+                            try:
+                                resp = resp.next_page()
+                            except ValueError:
+                                break
+                            else:
+                                if hasattr(resp, "from_cache") and resp.from_cache:
+                                    logger.debug("Response is from cache")
+                                else:
+                                    logger.debug("Response is from server")
+                        else:
+                            break
 
     @cached_property
     def module(self):
@@ -335,7 +481,7 @@ class EMuAPIResponse:
                 val = json.loads(val)
             except json.JSONDecodeError:
                 pass
-            params.setdefault(key, []).append(val)
+            params[key] = val
         return params
 
     @cached_property
@@ -390,7 +536,7 @@ class EMuAPIResponse:
             the result from the next page
         """
         try:
-            resp = self._api.get(
+            resp = self.api.get(
                 self.url,
                 data=self.request.body,
                 headers={"Next-Search": self.headers["Next-Search"]},
@@ -404,9 +550,10 @@ class EMuAPIParser:
     """Parses responses from the EMu API"""
 
     def __init__(self, rec_class=dict):
-        self._rec_class = rec_class
+        self.rec_class = rec_class
+        self.api = None
 
-    def parse(self, rec: dict, module: str, select: list | dict[dict] = None):
+    def parse(self, module: str, rec: dict, select: list | dict[dict] = None):
         """Parses a record returned by the EMu API
 
         Only attachments mapped in the original select parameter are resolved.
@@ -425,49 +572,190 @@ class EMuAPIParser:
         dict
             the record with all attachments resolved
         """
-        parsed = _parse_api(rec, module)
-        if self._rec_class != dict:
-            parsed = self._rec_class(parsed, module=module)
-        if select:
-            parsed = self.resolve_attachments(parsed, select=select)
+        parsed = _parse_api(module, rec, self.api, select=select)
+        if self.rec_class != dict:
+            parsed = self.rec_class(parsed, module=module)
         return parsed
 
-    def resolve_attachments(self, rec: dict, select: list | dict[dict] = None):
-        """Resolves attachments in a record returned by the EMu API
 
-        Only attachments mapped in the select parameter are resolved.
+class DeferredAttachment:
+    """An attached record defined by a module and IRN
 
-        Parameters
-        ----------
-        rec : dict
-            a record returned by the API
-        select : list | dict
+    The record itself is loaded when (1) a key is accessed or (2) it is loaded
+    manually using the resolve() method. Should be called by the attachment()
+    function to allow caching.
+
+    Parameters
+    ----------
+    val : str
+        the EMu attachment string
+    api : EMuAPI
+        the instance of the EMu API that created the parent record
+    select : list | dict
+        the fields to retrieve. If omitted, all fields are returned.
+
+    Attributes
+    ----------
+    verbatim : str
+        the EMu attachment string
+    module : str
+        the backend name of the EMu module
+    irn : int
+        the IRN of the attached record
+    select : list | dict
+        the fields to retrieve
+    """
+
+    _deferred = {}
+
+    def __init__(self, val, api, select=None):
+        self.verbatim = val
+        self.module, self.irn = val.split("/")[-2:]
+        self.irn = int(self.irn)
+        self.select = select
+        try:
+            key = tuple(sorted(select))
+        except TypeError:
+            key = select
+        self.__class__._deferred.setdefault((self.module, key), {})[self.irn] = self
+        self._data = None
+        self.api = api
+
+    def __str__(self):
+        return f"DeferredAttachment({self._data if self._data else self.verbatim})"
+
+    def __repr__(self):
+        return str(self)
+
+    def __int__(self):
+        return self.irn
+
+    def __getattr__(self, attr):
+        try:
+            return getattr(self.data, attr)
+        except AttributeError:
+            raise AttributeError(
+                f"{repr(self.__class__.__name__)} object has no attribute {repr(attr)}"
+            )
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, val):
+        self.data[key] = val
+
+    @property
+    def data(self):
+        """The EMu record for the given IRN and select statement"""
+        if self._data is None:
+            self.resolve()
+        return self._data
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
+
+    def items(self):
+        return self.data.items()
+
+    def resolve(self):
+        """Resolves all deferred records with the same IRN and select statement
 
         Returns
         -------
-        dict
-            the record with all attachments resolved
+        DeferredAttachment
+            attachment with data attribute populated
         """
-        for key, val in rec.items():
-            if is_ref(key):
-                field_info = EMuAPI.schema.get_field_info(self.module, key)
-                try:
-                    select_ = select[key]
-                except (KeyError, TypeError):
-                    pass
-                else:
-                    if isinstance(val, list):
-                        for i, val in enumerate(val):
-                            if val:
-                                val = self._api.retrieve(
-                                    field_info["RefTable"], val, select=select_
-                                ).first()
-                            rec[key][i] = val
-                    else:
-                        rec[key] = self._api.retrieve(
-                            field_info["RefTable"], val, select=select_
-                        ).first()
-        return rec
+        if not self._data:
+            try:
+                key = tuple(sorted(self.select))
+            except TypeError:
+                key = self.select
+            deferred = self.__class__._deferred.pop((self.module, key))
+            records = self.api.search(
+                module=self.module,
+                select=self.select,
+                filter_={"irn": list(deferred)},
+                limit=len(deferred),
+            ).records()
+
+            # Convert IRN to integer if records have not been parsed to do so already
+            try:
+                records = {int(k.split("/")[-1]): v for k, v in records.items()}
+            except AttributeError:
+                pass
+
+            for irn, rec in deferred.items():
+                rec._data = records[irn]
+
+        return self
+
+
+@cache
+def attachment(val, api, select=None):
+    """Creates a DeferredAttachment for the given value
+
+    This is the preferred way to create a DeferredAttachment.
+
+    Parameters
+    ----------
+    val : str
+        the EMu attachment string
+    api : EMuAPI
+        the instance of the EMu API that created the parent record
+    select : str
+        a JSON-encoded string of the fields to retrieve. If omitted, all fields are
+        returned.
+
+    Returns
+    -------
+    DeferredAttachment
+
+    """
+    try:
+        return DeferredAttachment(val, api, select=json.loads(select))
+    except AttributeError:
+        # Some ref fields are not actually attachments
+        if not isinstance(val, str) or not val.startswith("emu:"):
+            return val
+        raise
+
+
+def attach(obj: dict, api: EMuAPI, select: list | dict, module: str = None):
+    """Recursively turns reference fields to attachments that resolve when accessed
+
+    Parameters
+    ----------
+    obj : dict
+        an EMu record returned by the API
+    api : EMuAPI
+        the instance of the EMu API that created the record
+    select : list | dict
+        the fields to retrieve. If omitted, all fields are returned.
+    module : str
+
+    Returns
+    -------
+    dict
+        the record with top-level references converted to DeferredAttachments
+    """
+    if isinstance(obj, (dict, DeferredAttachment)):
+        for key, val in obj.items():
+            if key == "irn":
+                obj[key] = val
+                module = val.split("/")[-2]
+            else:
+                if (
+                    select
+                    and not key.endswith(("_grp", "_subgrp"))
+                    and isinstance(select, dict)
+                ):
+                    select = select.get(EMuAPI.schema.map_short_name(module, key))
+                obj[key] = attach(val, api, select, module)
+    elif isinstance(obj, (list, tuple)):
+        return [attach(v, api, select, module) for v in obj]
+    elif isinstance(obj, str) and re.match(r"^emu.*\d$", obj):
+        return attachment(obj, api, json.dumps(select))
+    return obj
 
 
 def and_(conds: list[dict]) -> dict:
@@ -529,6 +817,8 @@ def contains(val: str | list[str], col: str = None) -> dict:
     ---------
     val : str | list[str]
         the text to search for or a list of such strings
+    col : str
+        the name of the column. Typically ommitted.
 
     Returns
     -------
@@ -551,12 +841,12 @@ def range_(
     At least one of gt, lt, gte, and lte must be provided. Only one of gt and gte
     can be provided, and only one of lt and lte can be provided.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     gt: str | float | int
         the lower bound of the search, not inclusive
     lt: str | float | int
-        the upper bound of the search, inclusive
+        the upper bound of the search, not inclusive
     gte: str | float | int
         the lower bound of the search, inclusive
     lte: str | float | int
@@ -564,11 +854,13 @@ def range_(
     mode : str
         one of date, time, latitude, or longitude. If omitted, will try to guess
         based on the column or value.
+    col : str
+        the name of the column. Typically ommitted.
 
     Returns
     -------
     dict
-        an EMu API phonetic condition
+        an EMu API range condition
     """
     kwargs = {"gt": gt, "lt": lt, "gte": gte, "lte": lte}
     op = {k: v for k, v in kwargs.items() if v is not None}
@@ -581,9 +873,101 @@ def range_(
     # Infer mode from type of data
     if mode is None:
         mode = _infer_mode(list(op.values())[0])
-        if mode:
-            op["mode"] = mode
+    if mode:
+        op["mode"] = mode
     return _build_cond(None, col=col, op="range", **op)
+
+
+def gt(val: str | int | float, mode: str = None, col: str = None):
+    """Builds a condition to match values greater than a given value
+
+    This is a helper function based on range_().
+
+    Paramters
+    ---------
+    val: str | float | int
+        the lower bound of the search, not inclusive
+    mode : str
+        one of date, time, latitude, or longitude. If omitted, will try to guess
+        based on the column or value.
+    col : str
+        the name of the column. Typically ommitted.
+
+    Returns
+    -------
+    dict
+        an EMu API range condition
+    """
+    return range_(gt=val, mode=mode, col=col)
+
+
+def gte(val: str | int | float, mode: str = None, col: str = None):
+    """Builds a condition to match values greater than or equal to a given value
+
+    This is a helper function based on range_().
+
+    Paramters
+    ---------
+    val: str | float | int
+        the lower bound of the search, inclusive
+    mode : str
+        one of date, time, latitude, or longitude. If omitted, will try to guess
+        based on the column or value.
+    col : str
+        the name of the column. Typically ommitted.
+
+    Returns
+    -------
+    dict
+        an EMu API range condition
+    """
+    return range_(gte=val, mode=mode, col=col)
+
+
+def lt(val: str | int | float, mode: str = None, col: str = None):
+    """Builds a condition to match values less than a given value
+
+    This is a helper function based on range_().
+
+    Paramters
+    ---------
+    val: str | float | int
+        the upper bound of the search, not inclusive
+    mode : str
+        one of date, time, latitude, or longitude. If omitted, will try to guess
+        based on the column or value.
+    col : str
+        the name of the column. Typically ommitted.
+
+    Returns
+    -------
+    dict
+        an EMu API range condition
+    """
+    return range_(lt=val, mode=mode, col=col)
+
+
+def lte(val: str | int | float, mode: str = None, col: str = None):
+    """Builds a condition to match values less than or equal to a given value
+
+    This is a helper function based on range_().
+
+    Paramters
+    ---------
+    val: str | float | int
+        the upper bound of the search, inclusive
+    mode : str
+        one of date, time, latitude, or longitude. If omitted, will try to guess
+        based on the column or value.
+    col : str
+        the name of the column. Typically ommitted.
+
+    Returns
+    -------
+    dict
+        an EMu API range condition
+    """
+    return range_(lte=val, mode=mode, col=col)
 
 
 def exact(val: str | float | int, col: str = None, mode: str = None) -> dict:
@@ -685,7 +1069,7 @@ def proximity(val: str | list[str], col: str = None, distance: int = 3) -> dict:
         an EMu API phrase condition
     """
     raise NotImplementedError("Condition does not work as expected in API or client")
-    return _build_cond(val, col=col, op="proximity", distance=distance)
+    # return _build_cond(val, col=col, op="proximity", distance=distance)
 
 
 def regex(val: str | list[str], col: str = None) -> dict:
@@ -832,7 +1216,18 @@ def _infer_mode(val: Any) -> str | None:
 
 def _isinstance(val: Any, obj: object) -> bool:
     """Tests whether value or first value in an iterable is an instance of obj"""
-    return isinstance(val[0] if val and isinstance(val, (list, tuple)) else val, obj)
+    if isinstance(val, (list, tuple)):
+        return all((isinstance(_, obj) for _ in val))
+    return isinstance(val, obj)
+
+
+def _type(val: Any) -> type:
+    if isinstance(val, (list, tuple)):
+        types = [type(_) for _ in val]
+        if len(set(types)) != 1:
+            raise ValueError(f"Object contains different types: {val}")
+        return types[0]
+    return type(val)
 
 
 def _prep_field(val: str) -> str:
@@ -856,7 +1251,7 @@ def _prep_select(select: dict | list = None) -> str:
 
 def _prep_sort(sort_: dict) -> str:
     """Expands a simple sort to the format used by the EMu API"""
-    if isinstance(sort_, list):
+    if isinstance(sort_, (list, tuple)):
         sort_ = {c: "asc" for c in sort_}
     conds = []
     for col, val in sort_.items():
@@ -903,7 +1298,7 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
                 val = _val_to_query(col, val, use_emu_syntax=use_emu_syntax)
 
         val = val.get("AND", val)
-        if not isinstance(val, list):
+        if not isinstance(val, (list, tuple)):
             val = [val]
         if len(val) > 1:
             stmts.append(and_(val))
@@ -942,13 +1337,20 @@ def _build_cond(val: Any, op: str, col: str = None, **kwargs) -> dict:
                 lt_key = key
                 lt = val
 
+        # Complex ranges must be lists, so coerce if needed
+        if gt_key and lt_key and _type(gt) != _type(lt):
+            raise ValueError(f"{gt_key} and {lt_key} must have the same type")
+
+        # Simplify lists that only include one value
+        if isinstance(gt, (list, tuple)) and len(gt) == 1:
+            gt = gt[0]
+        if isinstance(lt, (list, tuple)) and len(lt) == 1:
+            lt = lt[0]
+
         if isinstance(gt, (list, tuple)) or isinstance(lt, (list, tuple)):
 
             if gt and lt:
-                # If both gt and lt are defined, they must have the same
-                # type and same number of items
-                if type(gt) != type(lt):
-                    raise ValueError(f"{gt_key} and {lt_key} must have the same type")
+                # If both gt and lt are defined, they must have the same length
                 if isinstance(gt, (list, tuple)) and len(gt) != len(lt):
                     raise ValueError(
                         f"{gt_key} and {lt_key} must have the same number of items"
@@ -958,23 +1360,7 @@ def _build_cond(val: Any, op: str, col: str = None, **kwargs) -> dict:
                     kwargs[gt_key] = gt
                     kwargs[lt_key] = lt
                     vals.append(_build_cond(None, op, col=col, **kwargs))
-                cond = or_(vals)
-                logger.debug(f"Built range condition: {cond}")
-                return cond
-
-            elif gt:
-                for gt in gt:
-                    kwargs[gt_key] = gt
-                    vals.append(_build_cond(None, op, col=col, **kwargs))
-                cond = or_(vals)
-                logger.debug(f"Built range condition: {cond}")
-                return cond
-
-            elif lt:
-                for lt in lt:
-                    kwargs[lt_key] = lt
-                    vals.append(_build_cond(None, op, col=col, **kwargs))
-                cond = or_(vals)
+                cond = or_(vals) if len(vals) > 1 else cond
                 logger.debug(f"Built range condition: {cond}")
                 return cond
 
@@ -1020,9 +1406,9 @@ def _val_to_query(
        the EMu column name
     val : str | list
         the value to convert
-    use_emu_syntax : bool
+    use_emu_syntax : bool = True
         whether the value uses EMu escape syntax
-    data_type : str
+    data_type : str = None
         the EMu data type. Used to ensure that range searches use the correct
         data type.
 
@@ -1033,10 +1419,14 @@ def _val_to_query(
     """
     # FIXME: Implement regex
 
+    # Map already defined conditions to the supplied column name
+    if isinstance(val, dict):
+        return {_prep_field(col): val}
+
     # Process multiple values
-    if isinstance(val, list):
+    if isinstance(val, (list, tuple)):
         if len(val) > 1:
-            return or_([_val_to_query(col, v) for v in val])
+            return or_([_val_to_query(col, v, use_emu_syntax, data_type) for v in val])
         else:
             val = val[0]
 
@@ -1044,16 +1434,17 @@ def _val_to_query(
     if isinstance(val, bool) or val is None:
         return exists(bool(val), col=col)
 
-    # Coerce to numeric type if a data_type hint is numeric
+    # Coerce to numeric type if data_type hint is numeric
     to_type = {"Float": float, "Integer": int}.get(data_type, str)
 
     # Simple numeric values can be returned with exact
-    if not data_type and to_type in (float, int):
-        if isinstance(val, (float, int)):
-            return exact(val, col=col)
+    if not data_type and isinstance(val, (float, int)):
+        return exact(val, col=col)
+    elif to_type in (float, int):
         try:
             return exact(to_type(val), col=col)
         except ValueError:
+            # Null searches, etc. are valid but non-numeric
             pass
 
     # EMuType classes map to exact
@@ -1132,7 +1523,7 @@ def _val_to_query(
     chars = ["@"]
     if use_emu_syntax:
         chars = [emu_escape(n) for n in chars]
-    pattern = r"(^|\b)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
+    pattern = r"(^|\b|\s)(" + "|".join([re.escape(n) for n in chars]) + r")([-\w]+)"
     match = re.search(pattern, val)
     if match:
         conds.append(phonetic(match.group(3), col=col))
@@ -1149,6 +1540,18 @@ def _val_to_query(
         raise ValueError(
             "Case- and diacritic-sensitive searches are not supported by the API"
         )
+
+    # Search for an exact word or phrase. Most numbers are handled in the Words and
+    # Numbers section below, although this pattern should catch phrases containing
+    # number, e.g., "Site 123".
+    if use_emu_syntax:
+        pattern = r'\\\^([^\d\W]+|\\"[^"]+\\")\\\$'
+    else:
+        pattern = r'\^([^\d\W]+|"[^"]+")\$'
+    match = re.match(pattern + "$", val)
+    if match:
+        conds.append(exact(match.group(1).strip('\\"'), col=col))
+        val = re.sub(pattern, "", val).strip()
 
     # Phrases
     if use_emu_syntax:
@@ -1187,7 +1590,7 @@ def _val_to_query(
     return and_(conds) if len(conds) > 1 else conds[0]
 
 
-def _parse_api(val, module, key=None, mapped=None):
+def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mapped=None):
     """Parses API response to remove field groupings"""
 
     if mapped is None:
@@ -1195,11 +1598,15 @@ def _parse_api(val, module, key=None, mapped=None):
 
     if key and not key.endswith(("_grp", "_subgrp")):
         key = EMuAPI.schema.map_short_name(module, key)
+        try:
+            select = select[key]
+        except (KeyError, TypeError):
+            pass
 
     # Iterate dicts
     if isinstance(val, dict):
         for key, val in val.items():
-            _parse_api(val, module, key, mapped)
+            _parse_api(module, val, api, select=select, key=key, mapped=mapped)
 
     # Map tables. Groups are based on definitions in the schema.
     elif key.endswith("_grp"):
@@ -1216,7 +1623,7 @@ def _parse_api(val, module, key=None, mapped=None):
 
         for key, vals in grid.items():
             if any(vals):
-                _parse_api(vals, module, key, mapped)
+                _parse_api(module, vals, api, select=select, key=key, mapped=mapped)
 
     # Map nested tables
     elif key.endswith("_subgrp"):
@@ -1238,16 +1645,22 @@ def _parse_api(val, module, key=None, mapped=None):
 
         for key, vals in grid.items():
             if any(vals):
-                _parse_api(vals, module, key, mapped)
+                _parse_api(module, vals, api, select=select, key=key, mapped=mapped)
 
-    # Simplify IRNs
-    elif val and key == "irn" or is_ref(key):
-        if isinstance(val, str) and val.startswith("emu:"):
-            mapped[key] = int(val.split("/")[-1])
-        elif isinstance(val, list):
+    # Simplify IRNs. Note that multimedia references use Ref fields and IRN-like text.
+    elif val and is_ref(key):
+        if "/media/" in val:
+            mapped[key] = val
+        elif isinstance(val, str):
+            mapped[key] = attachment(val, api, json.dumps(select))
+        elif isinstance(val, (list, tuple)):
             mapped[key] = [
-                int(s.split("/")[-1]) if isinstance(s, str) else s for s in val
+                s if "/media/" in s else attachment(s, api, json.dumps(select))
+                for s in val
             ]
+
+    elif key == "irn" and not isinstance(val, int):
+        mapped[key] = int(val.split("/")[-1])
 
     else:
         mapped[key] = val

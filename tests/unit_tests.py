@@ -1,3 +1,5 @@
+# Unit tests for the xmu package
+
 import json
 import os
 import pickle
@@ -2612,6 +2614,21 @@ def test_api_is_null():
 )
 def test_api_range(val, expected):
     assert range_(**val) == expected
+
+
+@pytest.mark.parametrize(
+    "val",
+    [{"gt": 1, "gte": 2}, {"lt": 2, "lte": 1}],
+)
+def test_api_range_with_xt_and_xte(val):
+    with pytest.raises(ValueError, match="Can only provide one"):
+        range_(**val)
+
+
+@pytest.mark.parametrize("val", [{"gt": 1, "lt": "a"}, {"gte": 1, "lte": "a"}])
+def test_api_range_different_type(val):
+    with pytest.raises(ValueError, match="gte? and lte? must have the same type"):
+        range_(**val)
 
 
 @pytest.mark.parametrize(
