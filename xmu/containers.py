@@ -338,7 +338,7 @@ class EMuSchema(dict):
 
         if not args or kwargs:
             try:
-                args = [os.path.expandvars(self.config["schema_path"])]
+                args = [os.path.expanduser(self.config["schema_path"])]
             except TypeError:
                 pass
 
