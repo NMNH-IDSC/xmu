@@ -645,9 +645,6 @@ class DeferredAttachment:
     def __getitem__(self, key):
         return self.data[key]
 
-    def __setitem__(self, key, val):
-        self.data[key] = val
-
     @property
     def data(self):
         """The EMu record for the given IRN and select statement"""
