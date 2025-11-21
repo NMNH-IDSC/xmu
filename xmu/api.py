@@ -135,9 +135,7 @@ class EMuAPI:
         # Token requests sometimes fail, particularly if several are done quickly.
         # To prevent this, the token is cached to a file in the working directory when
         # it is read.
-        if refresh:
-            print("Refreshing token")
-        else:
+        if not refresh:
             try:
                 with open("token") as f:
                     self._token = f.read().strip()
@@ -244,7 +242,7 @@ class EMuAPI:
             the query response
         """
         # Split irn from API reference notation (emu:{server}/{module}/{irn}))
-        if irn.startswith("emu:"):
+        if isinstance(irn, str) and irn.startswith("emu:"):
             irn = irn.split("/")[-1]
         url = self.base_url
         for part in [module, str(irn)]:
@@ -679,7 +677,7 @@ class DeferredAttachment:
                 limit=len(deferred),
             ).records()
 
-            # Convert IRN to integer if records have not been parsed to do so already
+            # Convert IRN to integer if records have not been parsed already
             try:
                 records = {int(k.split("/")[-1]): v for k, v in records.items()}
             except AttributeError:
@@ -1611,16 +1609,24 @@ def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mappe
                 _parse_api(module, vals, api, select=select, key=key, mapped=mapped)
 
     # Simplify IRNs. Note that multimedia references use Ref fields and IRN-like text.
+    # These are handled by the emu prefix check.
     elif val and is_ref(key):
-        if "/media/" in val:
+        if isinstance(val, str) and not val.startswith("emu:"):
             mapped[key] = val
         elif isinstance(val, str):
             mapped[key] = attachment(val, api, json.dumps(select))
         elif isinstance(val, (list, tuple)):
             mapped[key] = [
-                s if "/media/" in s else attachment(s, api, json.dumps(select))
+                (
+                    s
+                    if not isinstance(val, str) or not val.startswith("emu:")
+                    else attachment(s, api, json.dumps(select))
+                )
                 for s in val
             ]
+        # else:
+        #    # Some reference fields returned by the API contain data, not IRNs
+        #    mapped[key] = val
 
     elif key == "irn" and not isinstance(val, int):
         mapped[key] = int(val.split("/")[-1])
