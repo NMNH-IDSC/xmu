@@ -295,7 +295,7 @@ def flatten(obj: dict, path: list = None, result: dict = None) -> dict:
             path.append(key)
             flatten(val, path, result)
             path.pop()
-    elif isinstance(obj, list):
+    elif isinstance(obj, (list, tuple)):
         for i, val in enumerate(obj):
             path.append(f"{i + 1}.{strip_tab(path[-1])}")
             flatten(val, path, result)
