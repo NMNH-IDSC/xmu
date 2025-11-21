@@ -553,8 +553,8 @@ class EMuAPIResponse:
 class EMuAPIParser:
     """Parses responses from the EMu API"""
 
-    def __init__(self, rec_class=dict):
-        self.rec_class = rec_class
+    def __init__(self):
+        self.rec_class = dict
         self.api = None
 
     def parse(self, module: str, rec: dict, select: list | dict[dict] = None):
