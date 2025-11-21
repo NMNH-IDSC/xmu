@@ -724,44 +724,6 @@ def attachment(val, api, select=None):
         raise
 
 
-def attach(obj: dict, api: EMuAPI, select: list | dict, module: str = None):
-    """Recursively turns reference fields to attachments that resolve when accessed
-
-    Parameters
-    ----------
-    obj : dict
-        an EMu record returned by the API
-    api : EMuAPI
-        the instance of the EMu API that created the record
-    select : list | dict
-        the fields to retrieve. If omitted, all fields are returned.
-    module : str
-
-    Returns
-    -------
-    dict
-        the record with top-level references converted to DeferredAttachments
-    """
-    if isinstance(obj, (dict, DeferredAttachment)):
-        for key, val in obj.items():
-            if key == "irn":
-                obj[key] = val
-                module = val.split("/")[-2]
-            else:
-                if (
-                    select
-                    and not key.endswith(("_grp", "_subgrp"))
-                    and isinstance(select, dict)
-                ):
-                    select = select.get(EMuAPI.schema.map_short_name(module, key))
-                obj[key] = attach(val, api, select, module)
-    elif isinstance(obj, (list, tuple)):
-        return [attach(v, api, select, module) for v in obj]
-    elif isinstance(obj, str) and re.match(r"^emu.*\d$", obj):
-        return attachment(obj, api, json.dumps(select))
-    return obj
-
-
 def and_(conds: list[dict]) -> dict:
     """Combines a list of conditions with AND
 
