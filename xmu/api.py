@@ -61,7 +61,7 @@ class EMuAPI:
         username: str = None,
         password: str = None,
         autopage: bool = None,
-        config_path: str | Path = "emuapi.toml",
+        config_path: str | Path = "emurestapi.toml",
         parser: "EMuAPIParser" = None,
     ):
         self.config_path = config_path

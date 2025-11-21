@@ -30,7 +30,7 @@ from xmu import (
 
 @pytest.fixture
 def api():
-    config_path = Path(__file__).parent.parent / "emuapi.toml"
+    config_path = Path(__file__).parent.parent / "emurestapi.toml"
     with open(config_path, "rb") as f:
         kwargs = tomllib.load(f)["params"]
     schema_path = kwargs.pop("schema_path")

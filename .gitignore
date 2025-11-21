@@ -156,5 +156,5 @@ cython_debug/
 # Project-specific files
 _preflight.py
 .xmurc
-emuapi.toml
+emurestapi.toml
 token
