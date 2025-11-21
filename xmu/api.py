@@ -388,6 +388,7 @@ class EMuAPIResponse:
                 yield rec
             except KeyError:
                 resp = self
+                count = 0
                 while True:
                     try:
                         # Return records in batches to make resolving attachments more
@@ -426,9 +427,12 @@ class EMuAPIResponse:
                             records.append(rec)
                             if len(records) >= 1000:
                                 for rec in records:
+                                    count += 1
                                     yield rec
                                 records = []
+                        del match  # delete match so that exceptions work as expected
                         for rec in records:
+                            count += 1
                             yield rec
                     except Exception as exc:
                         try:
@@ -437,11 +441,11 @@ class EMuAPIResponse:
                             ) from exc
                         except NameError:
                             raise ValueError(
-                                f"No records found: {repr(resp.text)} ({resp.request.url})"
+                                f"No records found: {repr(resp.text)} ({resp.request.url}, {resp.params})"
                             ) from exc
                     else:
                         # Get the next page
-                        if resp.api.autopage:
+                        if resp.api.autopage and count < resp.hits:
                             try:
                                 resp = resp.next_page()
                             except ValueError:
