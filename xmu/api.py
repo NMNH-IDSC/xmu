@@ -368,23 +368,7 @@ class EMuAPIResponse:
                     # Resolving attachments individually is slow, so attachments
                     # are deferred until a number of records have been processed
                     # OR the user tries to access a key
-                    for key, val in rec.items():
-                        if is_ref(key):
-                            try:
-                                select = self.select[key]
-                            except (KeyError, TypeError):
-                                select = self.select
-                            if isinstance(val, (list, tuple)):
-                                rec[key] = [
-                                    attachment(
-                                        val_, self.api, select=json.dumps(select)
-                                    )
-                                    for val_ in val
-                                ]
-                            else:
-                                rec[key] = attachment(
-                                    val, self.api, select=json.dumps(select)
-                                )
+                    rec = self.defer_attachments(rec)
                 self._cached.append(rec)
                 yield rec
             except KeyError:
@@ -405,25 +389,7 @@ class EMuAPIResponse:
                                 # Resolving attachments individually is slow, so
                                 # attachments are deferred until a number of records
                                 # have been processed OR the user tries to access a key
-                                for key, val in rec.items():
-                                    if is_ref(key):
-                                        try:
-                                            select = resp.select[key]
-                                        except (KeyError, TypeError):
-                                            select = resp.select
-                                        if isinstance(val, (list, tuple)):
-                                            rec[key] = [
-                                                attachment(
-                                                    val_,
-                                                    self.api,
-                                                    select=json.dumps(select),
-                                                )
-                                                for val_ in val
-                                            ]
-                                        else:
-                                            rec[key] = attachment(
-                                                val, self.api, select=json.dumps(select)
-                                            )
+                                rec = self.defer_attachments(rec)
                             self._cached.append(rec)
 
                             # Special handling when using first() to prevent iterating
@@ -561,6 +527,37 @@ class EMuAPIResponse:
             raise ValueError("Next-Search not found in headers")
         return resp
 
+    def defer_attachments(self, rec):
+        """Defers attachments in record
+
+        Called automatically if resolve_attachments is True.
+
+        Parameters
+        ----------
+        rec : dict
+            a record returned by the EMu API
+
+        Returns
+        -------
+        dict
+            record with attachments converted to DeferredAttachments
+        """
+        for key, val in rec.items():
+            if key.endswith(("_grp", "_subgrp")):
+                for row in val:
+                    self.defer_attachments(row)
+            elif is_ref(key):
+                try:
+                    kwargs = {"select": json.dumps(self.select[key])}
+                except (KeyError, TypeError):
+                    kwargs = {}
+                if isinstance(val, (list, tuple)):
+                    rec[key] = [attach(val_, self.api, **kwargs) for val_ in val]
+                else:
+                    rec[key] = attach(val, self.api, **kwargs)
+
+        return rec
+
 
 class EMuAPIParser:
     """Parses responses from the EMu API"""
@@ -598,8 +595,8 @@ class DeferredAttachment:
     """An attached record defined by a module and IRN
 
     The record itself is loaded when (1) a key is accessed or (2) it is loaded
-    manually using the resolve() method. Should be called by the attachment()
-    function to allow caching.
+    manually using the resolve() method. New instances should be created using
+    the attach() function to allow caching.
 
     Parameters
     ----------
@@ -698,13 +695,21 @@ class DeferredAttachment:
                 pass
 
             for irn, rec in deferred.items():
-                rec._data = records[irn]
+                try:
+                    rec._data = records[irn]
+                except KeyError:
+                    # Records where SecRecordStatus does not equal Active are not
+                    # returned correctly by the search but can still be retrieved
+                    # by IRN
+                    rec._data = self.api.retrieve(
+                        self.module, irn, select=self.select
+                    ).first()
 
         return self
 
 
 @cache
-def attachment(val, api, select=None):
+def attach(val, api, select=None):
     """Creates a DeferredAttachment for the given value
 
     This is the preferred way to create a DeferredAttachment.
@@ -724,8 +729,11 @@ def attachment(val, api, select=None):
     DeferredAttachment
 
     """
+    kwargs = {}
+    if select:
+        kwargs["select"] = json.loads(select)
     try:
-        return DeferredAttachment(val, api, select=json.loads(select))
+        return DeferredAttachment(val, api, **kwargs)
     except AttributeError:
         # Some ref fields are not actually attachments
         if not isinstance(val, str) or not val.startswith("emu:"):
@@ -1628,13 +1636,13 @@ def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mappe
         if isinstance(val, str) and not val.startswith("emu:"):
             mapped[key] = val
         elif isinstance(val, str):
-            mapped[key] = attachment(val, api, json.dumps(select))
+            mapped[key] = attach(val, api, json.dumps(select))
         elif isinstance(val, (list, tuple)):
             mapped[key] = [
                 (
                     s
                     if not isinstance(val, str) or not val.startswith("emu:")
-                    else attachment(s, api, json.dumps(select))
+                    else attach(s, api, json.dumps(select))
                 )
                 for s in val
             ]
