@@ -147,26 +147,28 @@ class EMuAPI:
             with open(self.config_path, "rb") as f:
                 kwargs = tomllib.load(f)["params"]
 
-        resp = requests.post(
-            urljoin(self.base_url, "tokens"),
-            json={
-                "username": kwargs["username"],
-                "password": kwargs["password"],
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=TIMEOUT,
-        )
-
-        try:
-            self._token = resp.headers["Authorization"]
-        except KeyError:
-            raise ValueError(
-                f"Token request failed: {resp.url} (status_code={resp.status_code})"
+        # Token request includes exponential backoff if request fails
+        for i in range(4, 8):
+            resp = requests.post(
+                urljoin(self.base_url, "tokens"),
+                json={
+                    "username": kwargs["username"],
+                    "password": kwargs["password"],
+                },
+                headers={"Content-Type": "application/json"},
+                timeout=TIMEOUT,
             )
-        else:
-            with open("token", "w") as f:
-                f.write(self._token)
-            return self._token
+            try:
+                self._token = resp.headers["Authorization"]
+            except KeyError:
+                time.sleep(2**i)
+            else:
+                with open("token", "w") as f:
+                    f.write(self._token)
+                return self._token
+        raise ValueError(
+            f"Token request failed: {resp.url} (status_code={resp.status_code})"
+        )
 
     def get(self, *args, select=None, **kwargs):
         """Performs a GET operation with the proper authorization header
