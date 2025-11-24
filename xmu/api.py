@@ -337,6 +337,7 @@ class EMuAPIResponse:
         self.api = api
         self.select = select
         self.resolve_attachments = True
+        self._first_only = False
         self._response = response
         self._json = None
         self._cached = []
@@ -424,6 +425,13 @@ class EMuAPIResponse:
                                                 val, self.api, select=json.dumps(select)
                                             )
                             self._cached.append(rec)
+
+                            # Special handling when using first() to prevent iterating
+                            # through all records before returning the record
+                            if self._first_only:
+                                yield rec
+                                return
+
                             records.append(rec)
                             if len(records) >= 1000:
                                 for rec in records:
@@ -528,8 +536,12 @@ class EMuAPIResponse:
             the first record. If a rec_class is specified, the record will use that
             class.
         """
-        for rec in self:
-            return rec
+        self._first_only = True
+        try:
+            for rec in self:
+                return rec
+        finally:
+            self._first_only = False
 
     def next_page(self):
         """Gets the next pages of results in the result set
