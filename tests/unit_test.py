@@ -1,3 +1,5 @@
+# Unit tests for the xmu package
+
 import json
 import os
 import pickle
@@ -22,7 +24,22 @@ from xmu import (
     EMuSchema,
     EMuTime,
     EMuType,
+    and_,
+    or_,
     clean_xml,
+    contains,
+    exact,
+    exists,
+    is_not_null,
+    is_null,
+    phonetic,
+    phrase,
+    proximity,
+    emu_escape,
+    emu_unescape,
+    range_,
+    regex,
+    stemmed,
     get_mod,
     get_ref,
     get_tab,
@@ -39,6 +56,7 @@ from xmu import (
     write_xml,
     write_group,
 )
+from xmu.api import _prep_sort, _prep_select, _prep_filter, _val_to_query
 from xmu.types import ExtendedDate
 
 os.chdir("tests")
@@ -2113,6 +2131,7 @@ def test_dtype_coord_invalid_seconds():
     [
         ("AtomField", False),
         ("AtomFieldRef", False),
+        ("AtomField000", False),
         ("TableField0", True),
         ("TableField_nesttab", True),
         ("TableField_nesttab_inner", True),
@@ -2528,3 +2547,188 @@ def test_emurow_str(rec):
         repr(rec.grid("EmuTable_tab")[0])
         == "EMuRow({'EmuDate0': EMuDate('1970-01-01'), 'EmuTable_tab': 'Text', 'EmuRef_tab': {}, 'EmuNestedTable_nesttab': []})"
     )
+
+
+@pytest.mark.parametrize("kind", ["contains", "phonetic", "phrase", "stemmed"])
+def test_api_simple_operators(kind):
+    func = {
+        "contains": contains,
+        "phonetic": phonetic,
+        "phrase": phrase,
+        "proximity": proximity,
+        "stemmed": stemmed,
+    }[kind]
+    assert func("a") == {kind: {"value": "a"}}
+
+
+@pytest.mark.parametrize("kind", ["contains", "phonetic", "phrase", "stemmed"])
+def test_api_simple_operators_multiple_values(kind):
+    func = {
+        "contains": contains,
+        "phonetic": phonetic,
+        "phrase": phrase,
+        "proximity": proximity,
+        "stemmed": stemmed,
+    }[kind]
+    assert func(["a", "b"]) == {"OR": [{kind: {"value": "a"}}, {kind: {"value": "b"}}]}
+
+
+@pytest.mark.parametrize(
+    "val,expected",
+    [
+        ("a", {"exact": {"value": "a"}}),
+        (["a", "b"], {"OR": [{"exact": {"value": "a"}}, {"exact": {"value": "b"}}]}),
+        (45.5, {"exact": {"value": 45.5}}),
+        ("1970-01-01", {"exact": {"value": "1970-01-01", "mode": "date"}}),
+        ("10:00 AM", {"exact": {"value": "10:00 AM", "mode": "time"}}),
+        ("45 30 N", {"exact": {"value": "45 30 N", "mode": "latitude"}}),
+        ("75 15 W", {"exact": {"value": "75 15 W", "mode": "longitude"}}),
+    ],
+)
+def test_api_exact(val, expected):
+    assert exact(val) == expected
+
+
+def test_api_is_not_null():
+    assert exists(True) == is_not_null() == {"exists": {"value": True}}
+
+
+def test_api_is_null():
+    assert exists(False) == is_null() == {"exists": {"value": False}}
+
+
+@pytest.mark.parametrize(
+    "val,expected",
+    [
+        ({"gt": 1}, {"range": {"gt": 1}}),
+        ({"lt": 1}, {"range": {"lt": 1}}),
+        ({"gte": 1}, {"range": {"gte": 1}}),
+        ({"lte": 1}, {"range": {"lte": 1}}),
+        ({"gt": 1, "lt": 2}, {"range": {"gt": 1, "lt": 2}}),
+        ({"gt": 1, "lte": 2}, {"range": {"gt": 1, "lte": 2}}),
+        ({"gte": 1, "lt": 2}, {"range": {"gte": 1, "lt": 2}}),
+        ({"gte": 1, "lte": 2}, {"range": {"gte": 1, "lte": 2}}),
+        ({"gt": "1970-01-01"}, {"range": {"gt": "1970-01-01", "mode": "date"}}),
+        ({"gt": "10:00 AM"}, {"range": {"gt": "10:00 AM", "mode": "time"}}),
+        ({"gt": "45 30 N"}, {"range": {"gt": "45 30 N", "mode": "latitude"}}),
+        ({"gt": "75 15 W"}, {"range": {"gt": "75 15 W", "mode": "longitude"}}),
+    ],
+)
+def test_api_range(val, expected):
+    assert range_(**val) == expected
+
+
+@pytest.mark.parametrize(
+    "val",
+    [{"gt": 1, "gte": 2}, {"lt": 2, "lte": 1}],
+)
+def test_api_range_with_xt_and_xte(val):
+    with pytest.raises(ValueError, match="Can only provide one"):
+        range_(**val)
+
+
+@pytest.mark.parametrize("val", [{"gt": 1, "lt": "a"}, {"gte": 1, "lte": "a"}])
+def test_api_range_different_type(val):
+    with pytest.raises(ValueError, match="gte? and lte? must have the same type"):
+        range_(**val)
+
+
+@pytest.mark.parametrize(
+    "escaped,unescaped",
+    [
+        (r"\*", "*"),
+        (r"\!\*", "!*"),
+        (r"\+", "+"),
+        (r"\!\+", "!+"),
+        (r"\!a", "!a"),
+        (r"\"a b\"", '"a b"'),
+        (r"\^a b\$", "^a b$"),
+        (r"\[0-9\]", "[0-9]"),
+        (r"\[0-9\]\[0-9\]", "[0-9][0-9]"),
+    ],
+)
+def test_api_escape(escaped, unescaped):
+    assert emu_escape(unescaped) == escaped
+    assert emu_unescape(escaped) == unescaped
+
+
+@pytest.mark.parametrize(
+    "val,expected",
+    [
+        (r"\+", {"data.EmuText": {"exists": {"value": True}}}),
+        (r"\!\+", {"data.EmuText": {"exists": {"value": False}}}),
+        (True, {"data.EmuText": {"exists": {"value": True}}}),
+        (False, {"data.EmuText": {"exists": {"value": False}}}),
+        (None, {"data.EmuText": {"exists": {"value": False}}}),
+    ],
+)
+def test_api_val_to_query(val, expected):
+    assert _val_to_query("EmuText", val) == expected
+
+
+@pytest.mark.parametrize(
+    "val,expected",
+    [
+        ({"EmuText": "dinosaur"}, False),
+        ({"EmuText": True}, False),
+        ({"EmuText": False}, False),
+        (and_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]), False),
+        (or_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]), False),
+        # Compiled
+        ({"AND": [{"data.EmuText": {"contains": {"value": "dinosaur"}}}]}, True),
+        (
+            {
+                "OR": [
+                    {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+                    {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+                ]
+            },
+            True,
+        ),
+    ],
+)
+def test_is_compiled(val, expected):
+    assert _is_compiled(val) == expected
+
+
+@pytest.mark.parametrize(
+    "val",
+    [
+        and_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]),
+        {
+            "AND": [
+                {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+                {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+            ]
+        },
+    ],
+)
+def test_prep_and_filter(val):
+    assert json.loads(_prep_filter("emain", val)) == {
+        "AND": [
+            {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+            {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "val",
+    [
+        {"EmuText": ["dinosaur", "cretaceous"]},
+        or_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]),
+        {
+            "OR": [
+                {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+                {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+            ]
+        },
+    ],
+)
+def test_prep_or_filter(val):
+    assert json.loads(_prep_filter("emain", val)) == {
+        "OR": [
+            {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+            {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+        ]
+    }

@@ -1,5 +1,31 @@
 """Reads and writes XML for Axiell EMu"""
 
+from .api import (
+    EMuAPI,
+    EMuAPIParser,
+    EMuAPIResponse,
+    and_,
+    contains,
+    emu_escape,
+    emu_unescape,
+    exact,
+    exists,
+    is_not_null,
+    is_null,
+    gt,
+    gte,
+    lt,
+    lte,
+    not_,
+    or_,
+    order,
+    phrase,
+    phonetic,
+    proximity,
+    range_,
+    regex,
+    stemmed,
+)
 from .containers import (
     EMuColumn,
     EMuConfig,

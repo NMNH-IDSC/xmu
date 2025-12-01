@@ -410,6 +410,43 @@ class EMuReader:
                     counts[filelike.path] = len(re.findall(rb"\n  <tuple>", m.read()))
         return counts[list(counts)[0]] if len(counts) == 1 else counts
 
+    def map_to_select(self):
+        """Maps report schema to select parameter for EMu API"""
+        select = {}
+
+        for filelike in self.files:
+            with filelike.open("r", encoding="utf-8") as f:
+                lines = []
+                for line in f:
+                    lines.append(line)
+                    if line.startswith("?>"):
+                        break
+                content = "".join(lines)
+
+        containers = []
+        for line in (
+            re.search(r"<?schema\s+(.*?)\?>", content, flags=re.DOTALL)
+            .group(1)
+            .splitlines()
+        ):
+            line = line.strip()
+            try:
+                dtype, field = [s.strip() for s in line.rsplit(" ", 1)]
+            except ValueError:
+                dtype = None
+                containers.pop()
+            else:
+                if dtype in ("table", "tuple"):
+                    containers.append(field)
+                elif containers and not containers[-1].startswith(field):
+                    parts = containers[1:] + [field]
+                    select_ = select
+                    while parts:
+                        default = {} if is_ref(parts[0]) else None
+                        select_ = select_.setdefault(parts.pop(0), default)
+
+        return select
+
     def verify_group(self, path: str | list | tuple, module: str = None) -> None:
         """Verifies that all fields in a group are present in the export
 

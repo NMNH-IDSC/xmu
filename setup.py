@@ -40,7 +40,7 @@ setup(
     url="https://github.com/NMNH-IDSC/xmu.git",
     license="MIT",
     packages=find_packages(),
-    install_requires=["joblib", "lxml", "pyyaml"],
+    install_requires=["joblib", "lxml", "pyyaml", "requests"],
     include_package_data=True,
     zip_safe=False,
 )

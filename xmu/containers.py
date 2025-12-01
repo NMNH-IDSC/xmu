@@ -26,6 +26,7 @@ from warnings import warn
 from lxml import etree
 import yaml
 
+from .api import EMuAPI
 from .io import EMuReader
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
 from .utils import (
@@ -337,7 +338,7 @@ class EMuSchema(dict):
 
         if not args or kwargs:
             try:
-                args = [os.path.expandvars(self.config["schema_path"])]
+                args = [os.path.expanduser(self.config["schema_path"])]
             except TypeError:
                 pass
 
@@ -358,6 +359,7 @@ class EMuSchema(dict):
         EMuColumn.schema = self
         EMuGrid.schema = self
         EMuRow.schema = self
+        EMuAPI.schema = self
 
         # Tweak the schema based on the config file
         if self.config is not None:
@@ -622,14 +624,14 @@ class EMuSchema(dict):
         return _map_short_name(module, key)
 
     @staticmethod
-    def get_client_path(module: str, path: str | list[str]):
+    def get_client_path(module: str, path: str | list[str] | tuple[str]):
         """Gets the client path for a given field or path
 
         Parameters
         ----------
         module : str
             backend module name
-        path : str
+        path : str | list[str] | tuple[str]
             path to the field in EMu
 
         Returns
@@ -638,7 +640,7 @@ class EMuSchema(dict):
             the path to the field in the format used by EMu, for example, in
             the estandards module
         """
-        if not isinstance(path, list):
+        if not isinstance(path, (list, tuple)):
             path = re.split("[./]", path)
         client_path = []
         for segment in path:
@@ -1224,7 +1226,6 @@ class EMuGrid(MutableSequence):
                     rec = {k: v for k, v in self._rec.items() if strip_mod(k) in group}
                     if any(rec.values()):
                         cols = [c for c in cols if c not in group]
-                        print(cols)
         if mod:
             cols = [f"{c}({mod})" if not has_mod(c) else c for c in cols]
         for col in set(cols) - set(self.columns):
@@ -1706,8 +1707,15 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
                     "UserId": str,
                 }[dtype](child)
             except (TypeError, ValueError) as exc:
-                # Handle integers with decimals or commas
+                # Handle IRNs returned by the API
                 if (
+                    is_ref(field)
+                    and isinstance(child, str)
+                    and child.startswith("emu:")
+                ):
+                    child = int(child.split("/")[-1])
+                # Handle integers with decimals or commas
+                elif (
                     dtype == "Integer"
                     and isinstance(child, str)
                     and (
