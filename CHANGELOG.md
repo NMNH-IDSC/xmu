@@ -7,6 +7,22 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+0.1b10
+------
+
+- Added support for Python 3.14 and removed support for 3.10
+- Added EMuAPI class to read data from the EMu REST API
+- Added `sort()` method to EMuGrid
+- Added support for view fields when reading XML
+- Added methods to parse and write paths to fields. Field paths are used
+  in the Standards module.
+- Modified exception handling to produce more specific exceptions, for
+  example, when attempting to write an empty list using `write_xml()`
+- Fixed `is_tab()` to correctly identify fields with multiple trailing
+  numerals as atomic, for example, value fields in the Lookup Lists
+  module
+- Improved test coverage
+
 0.1b9
 -----
 

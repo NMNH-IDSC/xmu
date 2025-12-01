@@ -54,6 +54,6 @@ from .utils import (
     to_ref,
 )
 
-__version__ = "0.1b9"
+__version__ = "0.2b1"
 __author__ = "Adam Mansur"
 __credits__ = "Smithsonian National Museum of Natural History"

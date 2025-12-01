@@ -91,7 +91,10 @@ results = EMuReader("xmldata.xml").from_xml_parallel(callback)
 Using the EMu REST API
 ----------------------
 
-EMu 9 includes a [REST API](https://help.emu.axiell.com/emurestapi/latest/) that allows users to programatically interact with live data. This package includes support for the search and retrieve endpoints in the API.
+EMu 9 includes a [REST
+API](https://help.emu.axiell.com/emurestapi/latest/) that allows users
+to programatically interact with live data. This package includes
+support for the search and retrieve endpoints in the API.
 
 Create an instance of `EMuAPI`:
 
@@ -113,4 +116,6 @@ Search for a record in Catalog:
 api.search("ecatalogue", {"CatNumber": 1234})
 ```
 
-Please see [this notebook](https://github.com/NMNH-IDSC/xmu/blob/main/examples/api.ipynb) for additional information about using the API.
+Please see [this
+notebook](https://github.com/NMNH-IDSC/xmu/blob/main/examples/api.ipynb)
+for additional information about using the API.

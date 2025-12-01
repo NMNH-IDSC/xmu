@@ -38,7 +38,6 @@ from xmu import (
     emu_escape,
     emu_unescape,
     range_,
-    regex,
     stemmed,
     get_mod,
     get_ref,
@@ -56,7 +55,7 @@ from xmu import (
     write_xml,
     write_group,
 )
-from xmu.api import _prep_sort, _prep_select, _prep_filter, _val_to_query
+from xmu.api import _is_compiled, _prep_filter, _val_to_query
 from xmu.types import ExtendedDate
 
 os.chdir("tests")
