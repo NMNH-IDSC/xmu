@@ -24,6 +24,8 @@ from xmu import (
     EMuSchema,
     EMuTime,
     EMuType,
+    and_,
+    or_,
     clean_xml,
     contains,
     exact,
@@ -2653,12 +2655,80 @@ def test_api_escape(escaped, unescaped):
 @pytest.mark.parametrize(
     "val,expected",
     [
-        (r"\+", {"data.EMuField": {"exists": {"value": True}}}),
-        (r"\!\+", {"data.EMuField": {"exists": {"value": False}}}),
-        (True, {"data.EMuField": {"exists": {"value": True}}}),
-        (False, {"data.EMuField": {"exists": {"value": False}}}),
-        (None, {"data.EMuField": {"exists": {"value": False}}}),
+        (r"\+", {"data.EmuText": {"exists": {"value": True}}}),
+        (r"\!\+", {"data.EmuText": {"exists": {"value": False}}}),
+        (True, {"data.EmuText": {"exists": {"value": True}}}),
+        (False, {"data.EmuText": {"exists": {"value": False}}}),
+        (None, {"data.EmuText": {"exists": {"value": False}}}),
     ],
 )
 def test_api_val_to_query(val, expected):
-    assert _val_to_query("EMuField", val) == expected
+    assert _val_to_query("EmuText", val) == expected
+
+
+@pytest.mark.parametrize(
+    "val,expected",
+    [
+        ({"EmuText": "dinosaur"}, False),
+        ({"EmuText": True}, False),
+        ({"EmuText": False}, False),
+        (and_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]), False),
+        (or_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]), False),
+        # Compiled
+        ({"AND": [{"data.EmuText": {"contains": {"value": "dinosaur"}}}]}, True),
+        (
+            {
+                "OR": [
+                    {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+                    {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+                ]
+            },
+            True,
+        ),
+    ],
+)
+def test_is_compiled(val, expected):
+    assert _is_compiled(val) == expected
+
+
+@pytest.mark.parametrize(
+    "val",
+    [
+        and_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]),
+        {
+            "AND": [
+                {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+                {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+            ]
+        },
+    ],
+)
+def test_prep_and_filter(val):
+    assert json.loads(_prep_filter("emain", val)) == {
+        "AND": [
+            {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+            {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "val",
+    [
+        {"EmuText": ["dinosaur", "cretaceous"]},
+        or_([{"EmuText": "dinosaur"}, {"EmuText": "cretaceous"}]),
+        {
+            "OR": [
+                {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+                {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+            ]
+        },
+    ],
+)
+def test_prep_or_filter(val):
+    assert json.loads(_prep_filter("emain", val)) == {
+        "OR": [
+            {"data.EmuText": {"contains": {"value": "dinosaur"}}},
+            {"data.EmuText": {"contains": {"value": "cretaceous"}}},
+        ]
+    }

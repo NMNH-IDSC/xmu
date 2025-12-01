@@ -1246,10 +1246,41 @@ def _prep_sort(sort_: dict) -> str:
     return param
 
 
+def _is_compiled(obj, parents=None):
+    if parents is None:
+        parents = []
+    ops = {"contains", "equals", "exact", "phonetic", "range", "regex", "stemmed"}
+    if isinstance(obj, dict):
+        for key, vals in obj.items():
+            if key in {"AND", "OR", "NOT"}:
+                parents.append("bool_op")
+                for val in vals:
+                    result = _is_compiled(val, parents)
+                    if not result:
+                        return result
+                parents.pop()
+            elif parents and parents[-1] == "bool_op":
+                if not re.match(r"data\.[A-Z][a-z]{2}[A-Z]", key):
+                    return False
+                return bool(set(vals) & ops)
+            else:
+                return False
+    else:
+        return False
+    return True
+
+
 def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str:
     """Expands a simple filter to the format used by the EMu API"""
+
+    if _is_compiled(filter_):
+        param = json.dumps(filter_)
+        logger.debug(f"Did not modify precompiled filter {repr(filter_)}")
+        return param
+
     stmts = []
     for col, val in filter_.items():
+
         # Add column name to individual conditions if not already there
         if isinstance(val, dict):
             for key in list(val):
@@ -1261,6 +1292,15 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
                 else:
                     val[_prep_field(col)] = {key: vals}
                     del val[key]
+
+        elif isinstance(val, list):
+            vals = []
+            for val in val:
+                if col in ("AND", "OR"):
+                    vals.append(json.loads(_prep_filter(module, val))["AND"][0])
+                else:
+                    vals.append(_val_to_query(col, val))
+            val = and_(vals) if col == "AND" else or_(vals)
 
         else:
             # Infer operator based on data type in the schema if provided
@@ -1280,11 +1320,12 @@ def _prep_filter(module: str, filter_: dict, use_emu_syntax: bool = True) -> str
             else:
                 val = _val_to_query(col, val, use_emu_syntax=use_emu_syntax)
 
-        val = val.get("AND", val)
+        if isinstance(val, dict):
+            val = val.get("AND", val)
         if not isinstance(val, (list, tuple)):
             val = [val]
         if len(val) > 1:
-            stmts.append(and_(val))
+            stmts.append({"OR": or_}.get(col, and_)(val))
         else:
             stmts.append(val[0])
 
