@@ -7,8 +7,8 @@ The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-0.1b10
-------
+0.2b1
+-----
 
 - Added support for Python 3.14 and removed support for 3.10
 - Added EMuAPI class to read data from the EMu REST API
