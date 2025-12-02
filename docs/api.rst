@@ -1,10 +1,6 @@
-API
-===
+xmu.api
+=======
 
-.. toctree::
-   :maxdepth: 2
-
-   containers
-   io
-   types
-   utils
+.. automodule:: xmu.api
+   :members:
+   :show-inheritance:

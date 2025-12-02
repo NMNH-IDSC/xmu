@@ -17,4 +17,4 @@ Contents
    :maxdepth: 2
 
    user-guide
-   api
+   reference
