@@ -651,7 +651,14 @@ class EMuSchema(dict):
                 segment += "&" + segment.replace("_nesttab", "_tab")
             client_path.append(segment)
             if is_ref(segment):
-                client_path.append(_get_field_info(module, segment)["RefTable"])
+                try:
+                    module_ = client_path[-2]
+                except IndexError:
+                    module_ = module
+                client_path.append(_get_field_info(module_, segment)["RefTable"])
+        # Remove trailing module names
+        if client_path[-1].startswith("e"):
+            client_path.pop()
         return ".".join(client_path)
 
     @staticmethod

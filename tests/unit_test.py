@@ -323,6 +323,14 @@ use utf8;
 
 				ItemName => 'EmuRefTable',
 			},
+            'EmuReflexiveRef =>
+            {
+                ColumnName => 'EmuReflexiveRef',
+				DataType => 'Integer',
+                RefTable => 'eref',
+
+                ItemName => 'EmuReflexiveRef',
+            },
             'irn' =>
 			{
 				ColumnName => 'irn',
@@ -845,6 +853,12 @@ def test_schema_fields(schema_file):
                 ],
             },
             {
+                "ColumnName": "EmuReflexiveRef",
+                "DataType": "Integer",
+                "ItemName": "EmuReflexiveRef",
+                "RefTable": "eref",
+            },
+            {
                 "ColumnName": "irn",
                 "DataType": "Integer",
                 "ItemName": "IRN",
@@ -884,6 +898,7 @@ def test_schema_walk(schema_file):
         ("emain", "EmuReverseAttachmentRef_tab"),  # added at runtime
         ("eref", "EmuRefOnly"),
         ("eref", "EmuRefTable_tab"),
+        ("eref", "EmuReflexiveRef"),
         ("eref", "irn"),
     ]
 
@@ -896,6 +911,11 @@ def test_schema_walk(schema_file):
             "emain",
             "EmuNestedRef_nesttab.EmuRefOnly",
             "EmuNestedRef_nesttab&EmuNestedRef_tab.eref.EmuRefOnly",
+        ),
+        (
+            "emain",
+            "EmuNestedRef_nesttab.EmuReflexiveRef.EmuReflexiveRef",
+            "EmuNestedRef_nesttab&EmuNestedRef_tab.eref.EmuReflexiveRef.eref.EmuReflexiveRef",
         ),
     ],
 )
