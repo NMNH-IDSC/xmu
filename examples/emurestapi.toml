@@ -1,0 +1,5 @@
+[params]
+url = "http://{domain}:{port}/{server}"
+username = "username"
+password = "password"
+autopage = "true"

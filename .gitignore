@@ -154,7 +154,7 @@ cython_debug/
 #.idea/
 
 # Project-specific files
+/emurestapi.toml
 _preflight.py
 .xmurc
-emurestapi.toml
 token
