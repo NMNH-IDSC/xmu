@@ -55,7 +55,7 @@ from xmu import (
     write_xml,
     write_group,
 )
-from xmu.api import _is_compiled, _prep_filter, _val_to_query
+from xmu.api import _is_attachment, _is_compiled, _prep_filter, _val_to_query
 from xmu.types import ExtendedDate
 
 os.chdir("tests")
@@ -2751,3 +2751,16 @@ def test_prep_or_filter(val):
             {"data.EmuText": {"contains": {"value": "cretaceous"}}},
         ]
     }
+
+
+@pytest.mark.parametrize(
+    "key,val,expected",
+    [
+        ("EmuRef", "1234567", True),
+        ("EmuRef", "/emu:/server/module/1234567", False),
+        ("EmuRef", "/emu:/server/media/1234567:image", False),
+        ("EmuRef", "/emu:/server/media/1234567:document", False),
+    ],
+)
+def test_is_attachment(key, val, expected):
+    assert _is_attachment(key, val) == expected

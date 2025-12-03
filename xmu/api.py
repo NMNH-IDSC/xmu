@@ -549,13 +549,21 @@ class EMuAPIResponse:
                     self.defer_attachments(row)
             elif is_ref(key):
                 try:
-                    kwargs = {"select": json.dumps(self.select[key])}
+                    select = self.select[key]
                 except (KeyError, TypeError):
-                    kwargs = {}
+                    select = {}
                 if isinstance(val, (list, tuple)):
-                    rec[key] = [attach(val_, self.api, **kwargs) for val_ in val]
-                else:
-                    rec[key] = attach(val, self.api, **kwargs)
+                    vals = []
+                    for val in val:
+                        if _is_attachment(key, val):
+                            vals.append(attach(val, self.api, json.dumps(select)))
+                        else:
+                            vals.append(val)
+                    rec[key] = vals
+                elif _is_attachment(key, val):
+                    rec[key] = attach(val, self.api, json.dumps(select))
+                elif isinstance(val, str):
+                    rec[key] = val
 
         return rec
 
@@ -1615,6 +1623,15 @@ def _val_to_query(
     return and_(conds) if len(conds) > 1 else conds[0]
 
 
+def _is_attachment(key, val):
+    """Tests if key-value pair is an attachment"""
+    return bool(
+        is_ref(key)
+        and isinstance(val, str)
+        and (val.isnumeric() or re.match(r"emu:/[a-z]+/[a-z]+/\d+$", val))
+    )
+
+
 def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mapped=None):
     """Parses API response to remove field groupings"""
 
@@ -1675,22 +1692,18 @@ def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mappe
     # Simplify IRNs. Note that multimedia references use Ref fields and IRN-like text.
     # These are handled by the emu prefix check.
     elif val and is_ref(key):
-        if isinstance(val, str) and not val.startswith("emu:"):
-            mapped[key] = val
-        elif isinstance(val, str):
+        if isinstance(val, (list, tuple)):
+            vals = []
+            for val in val:
+                if _is_attachment(key, val):
+                    vals.append(attach(val, api, json.dumps(select)))
+                else:
+                    vals.append(val)
+            mapped[key] = vals
+        elif _is_attachment(key, val):
             mapped[key] = attach(val, api, json.dumps(select))
-        elif isinstance(val, (list, tuple)):
-            mapped[key] = [
-                (
-                    s
-                    if not isinstance(val, str) or not val.startswith("emu:")
-                    else attach(s, api, json.dumps(select))
-                )
-                for s in val
-            ]
-        # else:
-        #    # Some reference fields returned by the API contain data, not IRNs
-        #    mapped[key] = val
+        elif isinstance(val, str):
+            mapped[key] = val
 
     elif key == "irn" and not isinstance(val, int):
         mapped[key] = int(val.split("/")[-1])
