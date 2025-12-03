@@ -417,3 +417,11 @@ def test_deferred_int(api):
     rec = resp.first()
     irn = int(rec["BioEventSiteRef"]["irn"].split("/")[-1])
     assert irn == int(rec["BioEventSiteRef"])
+
+
+def test_search_kwarg_only(api):
+    with pytest.raises(
+        TypeError,
+        match=r"EMuAPI\.search\(\) takes 2 positional arguments but 4 were given",
+    ):
+        api.search("ecatalogue", ["CatNumber"], {"CatNumber": 1234})

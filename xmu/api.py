@@ -255,6 +255,7 @@ class EMuAPI:
     def search(
         self,
         module: str,
+        *,
         select: list[str] = None,
         sort_: dict = None,
         filter_: dict = None,
