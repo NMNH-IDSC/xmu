@@ -1835,7 +1835,10 @@ def _map_short_name(module: str, key: str) -> str:
             return key + suffix
         except KeyError:
             pass
-    _get_field_info(module, key)
+    # Raises validation error based on original key
+    if EMuRecord.schema.validate_paths:
+        _get_field_info(module, key)
+    return key
 
 
 @cache
