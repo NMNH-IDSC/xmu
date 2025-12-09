@@ -1820,7 +1820,9 @@ def _get_field_info(
 @cache
 def _map_short_name(module: str, key: str) -> str:
     """Maps short column name to full name"""
+    orig = key
     key = strip_tab(key)
+    matches = {}
     for suffix in (
         "",
         "_tab",
@@ -1831,13 +1833,34 @@ def _map_short_name(module: str, key: str) -> str:
         "Ref_nesttab",
     ):
         try:
-            _get_field_info(module, key + suffix)
-            return key + suffix
+            matches[key + suffix] = _get_field_info(module, key + suffix)
         except KeyError:
             pass
+
+    # Prefer fields that specify an item name
+    if len(matches) > 1:
+        matches_ = {k: v for k, v in matches.items() if v.get("ItemName")}
+        if matches_:
+            matches = matches
+
+    # Prefer fields that are located in the client
+    if len(matches) > 1:
+        matches_ = {k: v for k, v in matches.items() if v["Location"] != "server"}
+        if matches_:
+            matches = matches_
+
+    # Prefer fields that have been assigned to a group
+    if len(matches) > 1:
+        matches_ = {k: v for k, v in matches.items() if v.get("XMuGroup")}
+        if matches_:
+            matches = matches_
+
+    if len(matches) == 1:
+        return list(matches.values())[0]["ColumnName"]
+
     # Raises validation error based on original key
     if EMuRecord.schema.validate_paths:
-        _get_field_info(module, key)
+        _get_field_info(module, orig)
     return key
 
 
