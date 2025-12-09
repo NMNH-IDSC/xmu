@@ -454,7 +454,9 @@ class EMuSchema(dict):
         self.path = path
         path = os.path.splitext(path)[0]
         try:
-            self.from_json(f"{path}.json")
+            json_path = f"{path}.json"
+            self.from_json(json_path)
+            self.path = json_path
         except FileNotFoundError:
             self.from_pl(f"{path}.pl")
 
@@ -474,7 +476,9 @@ class EMuSchema(dict):
                         fields = list({_map_view(module, f): 1 for f in fields})
                         data["groups"][key] = fields
                         for field in fields:
-                            _get_field_info(module, field)["XMuGroupOrig"] = fields[:]
+                            field_info = _get_field_info(module, field)
+                            field_info["XMuGroupOrig"] = fields[:]
+                            field_info["XMuGroupName"] = key
 
             self.to_json(f"{path}.json")
 
@@ -663,7 +667,7 @@ class EMuSchema(dict):
 
     @staticmethod
     def get_group_info(module: str, path: str | list[str]) -> dict:
-        """Gets data about the field specified by a path
+        """Gets data about the group the path belongs to
 
         Parameters
         ----------
