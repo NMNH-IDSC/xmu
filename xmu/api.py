@@ -29,6 +29,8 @@ class EMuAPI:
     ----------
     url : str, optional
         the url for the EMu API, including tenant
+    tenant : str, optional
+        the name of tenant. Similar to service in the EMu client login.
     username : str, optional
         an EMu username. If omitted, defaults to the current OS username.
     password : str, optional
@@ -58,6 +60,7 @@ class EMuAPI:
     def __init__(
         self,
         url: str = None,
+        tenant: str = None,
         username: str = None,
         password: str = None,
         autopage: bool = None,
@@ -69,10 +72,12 @@ class EMuAPI:
             with open(self.config_path, "rb") as f:
                 config = tomllib.load(f)["params"]
         except FileNotFoundError:
-            self.base_url = url.rstrip("/") + "/"
+            pass
         else:
             if not url:
                 url = config["url"]
+            if not tenant:
+                tenant = config["tenant"]
             if not username:
                 username = config["username"]
             if not password:
@@ -80,10 +85,11 @@ class EMuAPI:
             if autopage is None:
                 autopage = config["autopage"]
 
-        self.base_url = url.rstrip("/") + "/"
+        self.url = url.rstrip("/") + "/"
+        self.tenant = tenant
         self.use_emu_syntax = True
 
-        # Parse must be assigned when the instance is created
+        # Parser must be assigned when the instance is created
         self._parser = None
         self.parser = parser
 
@@ -96,6 +102,11 @@ class EMuAPI:
         self.get_token(username=username, password=password)
 
         self._session = None
+        self._cached_session = None
+
+    @property
+    def base_url(self):
+        return urljoin(self.url, self.tenant).rstrip("/") + "/"
 
     @property
     def parser(self):
