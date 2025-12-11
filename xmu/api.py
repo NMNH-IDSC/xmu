@@ -130,6 +130,15 @@ class EMuAPI:
     def session(self, val):
         self._session = val
 
+    @property
+    def cached_session(self):
+        """The session object to use for API queries"""
+        return self._cached_session
+
+    @cached_session.setter
+    def cached_session(self, val):
+        self._cached_session = val
+
     def get_token(self, refresh=False, **kwargs):
         """Retrieves a token from the server to authorize requests
 
