@@ -390,6 +390,7 @@ class EMuAPIResponse:
                     # are deferred until a number of records have been processed
                     # OR the user tries to access a key
                     rec = self.defer_attachments(rec)
+                rec = dict(sorted(rec.items(), key=lambda kv: kv[0]))
                 self._cached.append(rec)
                 yield rec
             except KeyError:
@@ -411,6 +412,7 @@ class EMuAPIResponse:
                                 # attachments are deferred until a number of records
                                 # have been processed OR the user tries to access a key
                                 rec = self.defer_attachments(rec)
+                            rec = dict(sorted(rec.items(), key=lambda kv: kv[0]))
                             self._cached.append(rec)
 
                             # Special handling when using first() to prevent iterating
