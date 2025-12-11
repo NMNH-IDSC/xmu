@@ -19,7 +19,8 @@ from .utils import is_ref
 logger = logging.getLogger(__name__)
 
 
-TIMEOUT = 30
+# str : timeout in minutes for token
+JWT_TIMEOUT = 30
 
 
 class EMuAPI:
@@ -176,7 +177,7 @@ class EMuAPI:
                     "password": kwargs["password"],
                 },
                 headers={"Content-Type": "application/json"},
-                timeout=TIMEOUT,
+                timeout=JWT_TIMEOUT,
             )
             try:
                 self._token = resp.headers["Authorization"]
