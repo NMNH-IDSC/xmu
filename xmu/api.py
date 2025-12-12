@@ -191,64 +191,116 @@ class EMuAPI:
             f"Token request failed: {resp.url} (status_code={resp.status_code})"
         )
 
-    def get(self, *args, select=None, **kwargs):
-        """Performs a GET operation with the proper authorization header
-
-        Most requests should use either retrieve or search instead of calling this
-        method directly.
+    def insert(self, module, rec):
+        """Inserts a new record into the specified module
 
         Parameters
         ----------
-        args:
-            Any arg accepted by request.get()
-        select : list[str] | dict[dict], optional
-            A container with fields to include in the returned records. Fields from
-            other modules can be included using a dict formatted as follows:
-            {
-                "EMuField": None,
-                "EMuFieldRef": {
-                    "EMuFieldInAnotherModule": None,
-                }
-            }
-
-        kwargs:
-            Any kwarg accepted by request.get(). By default, the headers kwarg
-            includes {"Prefer": "representation=none", "X-HTTP-Method-Override" = "GET",
-            "Content-Type": "application/x-www-form-urlencoded"}. The latter two keys
-            are used to implement the HTTP method override recommended by Axiell.
+        module: str
+            the module in which to create the record
+        rec : dict
+            the record to insert
 
         Returns
         -------
         EMuAPIResponse
-            the response returned for the request
+            the response with the result of the insert operation. This will be
+            the complete new record.
         """
-        headers = kwargs.setdefault("headers", {})
-        headers["Authorization"] = f"{self._token}"
-        headers.setdefault("Prefer", "representation=none")
+        url = urljoin(self.base_url, module).rstrip("/") + "/"
+        return EMuAPIRequest("POST", self, url.rstrip("/"), json=rec)
 
-        # Add the HTTP method override per recommendation at
-        # https://help.emu.axiell.com/emurestapi/3.1.2/05-Appendices-Override.html
-        headers["X-HTTP-Method-Override"] = "GET"
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    def insert_replace(self, module, irn, rec):
+        """Inserts or replaces the record with the given IRN
 
-        # Redact authorization before logging
-        redacted = re.sub(
-            "'Authorization': '.*?'", "'Authorization': '[REDACTED]'", str(kwargs)
-        )
+        Parameters
+        ----------
+        module: str
+            the module containg the record to insert or replace
+        irn : str | int
+            the IRN for the EMu record to insert or replace
+        rec : dict
+            the record to insert or replace
 
-        logger.debug(f"Making GET request: {args[0]} (params={redacted})")
-        resp = EMuAPIResponse(
-            self.session.post(*args, **kwargs),
-            api=self,
-            select=select,
-        )
-        if resp.status_code == 401:
-            self.get_token(refresh=True)
-            return self.get(*args, select=select, **kwargs)
-        return resp
+        Returns
+        -------
+        EMuAPIResponse
+            the response with the result of the insert/replace operation
+        """
+        if isinstance(irn, str) and irn.startswith("emu:"):
+            irn = irn.split("/")[-1]
+        url = self.base_url
+        for part in [module, str(irn)]:
+            url = urljoin(url, part).rstrip("/") + "/"
+        return EMuAPIRequest("PUT", self, url.rstrip("/"), json=rec)
+
+    def edit(self, module, irn, patch):
+        """Edits the record specified by the given IRN
+
+        Parameters
+        ----------
+        module: str
+            the module containg the record to edit
+        irn : str | int
+            the IRN for the EMu record to edit
+        patch : list[dict]
+            the list of changes using JSON patch syntax
+
+        Returns
+        -------
+        EMuAPIResponse
+            the response with the result of the edit operation. This will be the
+            edited record.
+        """
+        if isinstance(irn, str) and irn.startswith("emu:"):
+            irn = irn.split("/")[-1]
+        url = self.base_url
+        for part in [module, str(irn)]:
+            url = urljoin(url, part).rstrip("/") + "/"
+        # HACK: The API will not append to a group that does not exist, so records
+        # that append to groups need to be checked to verify that each group exists.
+        # If not, the first entry is modified to an insert instead of an append.
+        # Note that this will be slow for large numbers of records because each
+        # records needs to be retrieved.
+        if any(("_grp" in e["path"]) for e in patch):
+            rec = self.retrieve(module, irn).first()
+            addressed = {}
+            for entry in patch:
+                path = entry["path"].strip("/-")
+                if (
+                    path not in rec
+                    and path not in addressed
+                    and entry["path"].endswith("-")
+                ):
+                    entry["path"] = entry["path"].rstrip("/-")
+                    entry["value"] = [entry["value"]]
+                    addressed[path] = True
+        return EMuAPIRequest("PATCH", self, url.rstrip("/"), json=patch)
+
+    def delete(self, module, irn):
+        """Deletes a single record by irn
+
+        Parameters
+        ----------
+        module: str
+            the module to query
+        irn : str | int
+            the IRN for the EMu record to retrieve
+
+        Returns
+        -------
+        EMuAPIResponse
+            the response with the result of the delete operation
+        """
+        if isinstance(irn, str) and irn.startswith("emu:"):
+            irn = irn.split("/")[-1]
+        url = self.base_url
+        for part in [module, str(irn)]:
+            url = urljoin(url, part).rstrip("/") + "/"
+        return EMuAPIRequest("DELETE", self, url.rstrip("/"))
 
     def retrieve(self, module: str, irn: str | int, select: list[str] = None) -> None:
-        """Retrieves a single record from an irn
+        """Retrieves a single record from an IRN
 
         Parameters
         ----------
@@ -262,7 +314,7 @@ class EMuAPI:
         Returns
         -------
         EMuAPIResponse
-            the query response
+            the response containing record matching the given IRN
         """
         # Split irn from API reference notation (emu:{server}/{module}/{irn}))
         if isinstance(irn, str) and irn.startswith("emu:"):
@@ -271,7 +323,7 @@ class EMuAPI:
         for part in [module, str(irn)]:
             url = urljoin(url, part).rstrip("/") + "/"
         params = self._prep_query(module=module, select=select)
-        return self.get(url.rstrip("/"), data=params, select=select)
+        return EMuAPIRequest("GET", self, url.rstrip("/"), data=params, select=select)
 
     def search(
         self,
@@ -283,7 +335,7 @@ class EMuAPI:
         limit: int = 10,
         cursor_type: str = "server",
     ):
-        """Searches EMu based on the provided filter
+        """Searches a module for record matching the given filter
 
         Parameters
         ----------
@@ -308,7 +360,7 @@ class EMuAPI:
         Yields
         ------
         EMuAPIResponse
-            the query response
+            the response containing records matching the query
         """
         params = self._prep_query(
             module=module,
@@ -318,9 +370,8 @@ class EMuAPI:
             limit=limit,
             cursorType=cursor_type,
         )
-        return self.get(
-            urljoin(self.base_url, module).rstrip("/"), data=params, select=select
-        )
+        url = urljoin(self.base_url, module).rstrip("/")
+        return EMuAPIRequest("GET", self, url, data=params, select=select)
 
     def _prep_query(self, **kwargs):
         """Format the query for the EMu API"""
