@@ -15,7 +15,7 @@ from collections.abc import (
     MutableSequence,
 )
 from ctypes import c_uint64
-from itertools import chain
+from itertools import chain, zip_longest
 from functools import cache
 from pathlib import Path
 from pprint import pformat
@@ -1480,6 +1480,27 @@ class EMuRecord(dict):
         """
         return EMuGrid(self, field, **kwargs)
 
+    def group_columns(self):
+        """Assigns fields to groups defined in the EMu schema file
+
+        Returns
+        -------
+        dict
+            the EMu record with fields grouped based on the schema
+        """
+        return group_columns(self)
+
+    def to_dict(self):
+        """Converts record to a dict
+
+        Returns
+        -------
+        dict
+            record as dict with all custom data types converted to JSON-serializable
+            types
+        """
+        return json.loads(self.json())
+
     def to_xml(
         self, root: etree.Element | etree.SubElement = None, kind: str = None
     ) -> etree.Element:
@@ -1587,6 +1608,30 @@ class EMuRecord(dict):
                         atom.text = str(val)
         return root
 
+    def to_patch(self):
+        """Creates a patch for the EMu REST API edit operation
+
+        Returns
+        -------
+        tuple[str]
+            module, irn, and patch
+        """
+        rec = self.group()
+        irn = rec.pop("irn")
+        patch = []
+        for key, val in rec.items():
+            mod = get_mod(key)
+            path = "/" + strip_mod(key).lstrip("/")
+            if not mod:
+                if val:
+                    patch.append({"op": "add", "path": path, "value": val})
+                else:
+                    patch.append({"op": "remove", "path": path})
+            elif mod == "+":
+                for row in val:
+                    patch.append({"op": "add", "path": path + "/-", "value": row})
+        return self.module, irn, patch
+
 
 class EMuEncoder(json.JSONEncoder):
     """Encodes objects using EMuRecord and EMuColumn"""
@@ -1597,6 +1642,55 @@ class EMuEncoder(json.JSONEncoder):
         elif isinstance(o, list):
             return list(o)
         return str(o)
+
+
+def group_columns(rec, module=None):
+    """Assigns fields to groups defined in the EMu schema file
+
+    Parameters
+    ----------
+    rec : EMuRecord | dict
+        an EMu record
+    module : str, optional
+        the name of an EMu module. Must be inluded if rec does not include the
+        module attribute.
+
+    Returns
+    -------
+    dict
+        the EMu record with fields grouped based on the schema
+    """
+    if isinstance(rec, EMuRecord):
+        module = rec.module
+        rec = rec.to_dict()
+    grouped = {}
+    groups = {}
+    for key, val in rec.items():
+        field_info = _get_field_info(module, key)
+        mod = get_mod(key)
+        if mod:
+            mod = f"({mod})"
+        try:
+            groups.setdefault(field_info["XMuGroupName"] + mod, []).append(key)
+        except KeyError:
+            grouped[key] = val
+    for group, keys in groups.items():
+        for row in zip_longest(*[rec[k] for k in keys]):
+            row = dict(zip([strip_mod(k) for k in keys], row))
+            for key in list(row):
+                mod = get_mod(key)
+                if mod:
+                    mod = f"({mod})"
+                if is_nesttab(key):
+                    stripped = strip_tab(key)
+                    row[f"{stripped}_subgrp{mod}"] = [{stripped: v} for v in row[key]]
+                    del row[key]
+                elif is_tab(key):
+                    row[strip_tab(key)] = row[key]
+                    del row[key]
+
+            grouped.setdefault(group, []).append(row)
+    return grouped
 
 
 def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -> Any:

@@ -34,6 +34,7 @@ from .containers import (
     EMuRow,
     EMuRecord,
     EMuSchema,
+    group_columns,
 )
 from .io import EMuReader, clean_xml, write_csv, write_group, write_import, write_xml
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
