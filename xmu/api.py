@@ -347,6 +347,108 @@ class EMuAPI:
         return params
 
 
+class EMuAPIRequest:
+    """Prepares a request for the EMu REST API
+
+    Parameters
+    ----------
+    api : EMuAPI
+        the EMuAPI object
+    method : str
+        the HTTP method request method
+    *args
+        arguments passed to the request
+    **kwargs
+        keyword arguments to pass to the request
+
+    Attributes
+    ----------
+    session : request.Session | requests_cache.CachedSession
+        the session object to use to make the request
+    """
+
+    def __init__(self, method, api, *args, **kwargs):
+        self.api = api
+        self.method = method.upper()
+        self.args = args
+        self.kwargs = kwargs
+        self._prepared = None
+        self._response = None
+        # GET requests can optionally used a CachedSession if defined in the API
+        if method == "GET" and self.api.cached_session:
+            self.session = self.api.cached_session
+        else:
+            self.session = self.api.session
+
+    def __str__(self):
+        return f"<{self.__class__.__name__} method={repr(self.prepared.method)} url={repr(self.prepared.url)} body={repr(self.prepared.body)}>"
+
+    def __repr__(self):
+        return str(self)
+
+    def __iter__(self):
+        return iter(self.response)
+
+    def first(self):
+        return self.response.first()
+
+    @property
+    def prepared(self):
+        """The prepared request"""
+        return self.prepare()
+
+    @property
+    def response(self):
+        """The response to the request"""
+        return self.send()
+
+    def first(self):
+        return self.send().first()
+
+    def prepare(self):
+        """Prepares the request
+
+        Returns
+        -------
+        requests.PreparedRequest
+            the prepared request
+        """
+        if self._prepared is None:
+            headers = self.kwargs.setdefault("headers", {})
+            headers["Authorization"] = self.api._token
+            headers.setdefault("Content-Type", "application/json")
+            headers.setdefault("Prefer", "representation=none")
+            # Add HTTP method override to headers per recommendation at
+            # https://help.emu.axiell.com/emurestapi/3.1.2/05-Appendices-Override.html
+            method = self.method
+            if self.method == "GET":
+                headers["X-HTTP-Method-Override"] = "GET"
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+                method = "POST"
+            # Prepare the request
+            kwargs = {k: v for k, v in self.kwargs.items() if k != "select"}
+            self._prepared = requests.Request(method, *self.args, **kwargs).prepare()
+        return self._prepared
+
+    def send(self):
+        """Sends the prepared request
+
+        Returns
+        -------
+        EMuAPIResponse
+            the records returned for the request
+        """
+        if self._response is None:
+            resp = self.session.send(self.prepared, timeout=30)
+            if resp.status_code == 401:
+                self.api.get_token(refresh=True)
+                self._prepared = None
+                resp = self.send()
+            kwargs = {k: v for k, v in self.kwargs.items() if k == "select"}
+            self._response = EMuAPIResponse(resp, api=self.api, **kwargs)
+        return self._response
+
+
 class EMuAPIResponse:
     """Wraps a response from the EMu API response"""
 
@@ -587,7 +689,6 @@ class EMuAPIResponse:
                     rec[key] = attach(val, self.api, json.dumps(select))
                 elif isinstance(val, str):
                     rec[key] = val
-
         return rec
 
 
