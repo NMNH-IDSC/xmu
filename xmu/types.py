@@ -768,7 +768,7 @@ class EMuDate(EMuType):
         "month": ("%B", "%b", "%m", "%-m"),
         "year": ("%Y", "%y"),
     }
-    formats = {"day": "%Y-%m-%d", "month": "%b %Y", "year": "%Y"}
+    formats = {"day": "%Y-%m-%d", "month": "%Y-%m-", "year": "%Y"}
 
     def __init__(self, *val, fmt: str = None):
         """Initialize an EMuDate object
