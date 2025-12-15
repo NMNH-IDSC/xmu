@@ -37,6 +37,7 @@ from .utils import (
     get_mod,
     has_mod,
     strip_mod,
+    strip_ref,
     strip_tab,
 )
 
@@ -1608,6 +1609,22 @@ class EMuRecord(dict):
                         atom.text = str(val)
         return root
 
+    def to_insert(self, api):
+        """Prepares a record to be inserted into EMu
+
+        Parameters
+        ----------
+        api : EMuAPI
+            the EMuAPI instance that will be used to insert the record
+
+        Returns
+        -------
+        dict
+            the record with related columns grouped and attachments resolved
+        """
+        mapped = api._map_attachments(self.module, self.to_dict())
+        return group_columns(mapped, module=self.module)
+
     def to_patch(self):
         """Creates a patch for the EMu REST API edit operation
 
@@ -1616,7 +1633,7 @@ class EMuRecord(dict):
         tuple[str]
             module, irn, and patch
         """
-        rec = self.group()
+        rec = self.group_columns()
         irn = rec.pop("irn")
         patch = []
         for key, val in rec.items():
@@ -1683,7 +1700,8 @@ def group_columns(rec, module=None):
                     mod = f"({mod})"
                 if is_nesttab(key):
                     stripped = strip_tab(key)
-                    row[f"{stripped}_subgrp{mod}"] = [{stripped: v} for v in row[key]]
+                    subgrp = strip_ref(stripped)  # subgroup drops Ref if present
+                    row[f"{subgrp}_subgrp{mod}"] = [{stripped: v} for v in row[key]]
                     del row[key]
                 elif is_tab(key):
                     row[strip_tab(key)] = row[key]
@@ -2034,3 +2052,5 @@ try:
     EMuSchema()
 except (FileNotFoundError, TypeError):
     pass
+
+EMuAPI.rec_class = EMuRecord

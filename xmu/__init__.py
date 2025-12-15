@@ -51,6 +51,7 @@ from .utils import (
     is_tab,
     split_field,
     strip_mod,
+    strip_ref,
     strip_tab,
     to_ref,
 )

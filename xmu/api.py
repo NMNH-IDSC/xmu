@@ -56,6 +56,7 @@ class EMuAPI:
         Clients searches escape control characters using a backslash.
     """
 
+    rec_class = None
     schema = None
 
     def __init__(
@@ -208,7 +209,9 @@ class EMuAPI:
             the complete new record.
         """
         url = urljoin(self.base_url, module).rstrip("/") + "/"
-        return EMuAPIRequest("POST", self, url.rstrip("/"), json=rec)
+        return EMuAPIRequest(
+            "POST", self, url.rstrip("/"), json=self.to_insert(rec, module=module)
+        )
 
     def insert_replace(self, module, irn, rec):
         """Inserts or replaces the record with the given IRN
@@ -232,7 +235,9 @@ class EMuAPI:
         url = self.base_url
         for part in [module, str(irn)]:
             url = urljoin(url, part).rstrip("/") + "/"
-        return EMuAPIRequest("PUT", self, url.rstrip("/"), json=rec)
+        return EMuAPIRequest(
+            "PUT", self, url.rstrip("/"), json=self.to_insert(rec, module=module)
+        )
 
     def edit(self, module, irn, patch):
         """Edits the record specified by the given IRN
@@ -243,7 +248,7 @@ class EMuAPI:
             the module containg the record to edit
         irn : str | int
             the IRN for the EMu record to edit
-        patch : list[dict]
+        patch : list[dict] | EMuRecord
             the list of changes using JSON patch syntax
 
         Returns
@@ -252,6 +257,11 @@ class EMuAPI:
             the response with the result of the edit operation. This will be the
             edited record.
         """
+        # Convert an EMuRecord to a patch
+        try:
+            patch = patch.to_insert()
+        except AttributeError:
+            pass
         if isinstance(irn, str) and irn.startswith("emu:"):
             irn = irn.split("/")[-1]
         url = self.base_url
@@ -373,6 +383,158 @@ class EMuAPI:
         url = urljoin(self.base_url, module).rstrip("/")
         return EMuAPIRequest("GET", self, url, data=params, select=select)
 
+    def to_insert(self, rec, module=None):
+        """Prepares a record to be inserted into EMu
+
+        Parameters
+        ----------
+        rec : EMuRecord | dict
+            the record to insert
+        module : str
+            the backend name of an EMu module
+
+        Returns
+        -------
+        dict
+            the record with related columns grouped and attachments resolved
+        """
+        try:
+            return rec.to_insert(self)
+        except AttributeError:
+            if not any((k.endswith("_grp") for k in rec)):
+                return self.rec_class(rec, module=module).to_insert(self)
+            return rec
+
+    def to_patch(self, rec):
+        """Creates a patch for the EMu REST API edit operation
+
+        Parameters
+        ----------
+        rec : EMuRecord
+            the record to translate to a patch
+
+        Returns
+        -------
+        tuple[str]
+            module, irn, and patch
+        """
+        return self.to_patch(rec)
+
+    def to_api_irn(self, module, val):
+        """Converts an IRN to the format expected by the API
+
+        Parameters
+        ----------
+        module : str
+            the backend name of the EMu module
+        val : str | int | dict
+            the value to convert
+
+        Returns
+        -------
+        str
+            the IRN in the form emu:/{tenant}/{module}/{val}
+        """
+        if isinstance(val, dict):
+            val = val["irn"]
+        if isinstance(val, int) or not val.startswith("emu:"):
+            return f"emu:/{self.tenant}/{module}/{val}"
+        return val
+
+    def _map_to_irn(self, module, col, val):
+        """Maps a record to an IRN
+
+        Parameters
+        ----------
+        module : str
+            the backend name of the EMu module
+        col : str
+            the backend name of an EMu field
+        val : dict | str |int
+            an EMu record or IRN
+
+        Returns
+        -------
+        str
+        """
+        module = EMuAPI.schema.get_field_info(module, col)["RefTable"]
+        if isinstance(val, (str, int)):
+            irn = val
+        else:
+            try:
+                irn = val["irn"]
+            except KeyError:
+                filter_ = {k: v if v else r"\!\+" for k, v in val.items()}
+                resp = self.search(module, filter_=filter_).send()
+                if not resp.hits:
+                    resp = self.insert(module, val).send()
+                irn = resp.first()["irn"]
+        return self.to_api_irn(module, irn)
+
+    def _map_attachments(self, module, rec, mapped=None):
+        """Maps attached records to IRNs
+
+        Parameters
+        ----------
+        module : str
+            the backend name of the EMu module
+        rec : dict | str |int
+            an EMu record or IRN
+        mapped : dict
+            the record with attachments resolved
+
+        Returns
+        -------
+        dict
+            the record with attachments resolved
+        """
+        if mapped is None:
+            mapped = {}
+        if isinstance(rec, (str, int)):
+            return self.to_api_irn(module, rec)
+        for col, val in rec.items():
+            if is_ref(col):
+                ref_module = self.schema.get_field_info(module, col)["RefTable"]
+                if isinstance(val, list):
+                    vals = []
+                    for row in val:
+                        if isinstance(row, list):
+                            nested = []
+                            for row_ in row:
+                                module_ = (
+                                    ref_module
+                                    if isinstance(row_, (str, int))
+                                    else module
+                                )
+                                nested.append(
+                                    self._map_to_irn(
+                                        module,
+                                        col,
+                                        self._map_attachments(module_, row_),
+                                    )
+                                )
+                            vals.append(nested)
+                        elif isinstance(row, (str, int)):
+                            vals.append(self.to_api_irn(ref_module, row))
+                        else:
+                            vals.append(
+                                self._map_to_irn(
+                                    module,
+                                    col,
+                                    self._map_attachments(module, row),
+                                )
+                            )
+                    mapped[col] = vals
+                else:
+                    mapped[col] = self._map_to_irn(
+                        module,
+                        col,
+                        self._map_attachments(module, val),
+                    )
+            else:
+                mapped[col] = val
+        return mapped
+
     def _prep_query(self, **kwargs):
         """Format the query for the EMu API"""
 
@@ -453,6 +615,11 @@ class EMuAPIRequest:
         """The response to the request"""
         return self.send()
 
+    @cached_property
+    def params(self):
+        """The query parameters used to make the request"""
+        return _params(self.prepared)
+
     def first(self):
         return self.send().first()
 
@@ -470,7 +637,7 @@ class EMuAPIRequest:
             headers.setdefault("Content-Type", "application/json")
             headers.setdefault("Prefer", "representation=none")
             # Add HTTP method override to headers per recommendation at
-            # https://help.emu.axiell.com/emurestapi/3.1.2/05-Appendices-Override.html
+            # https://help.emu.axiell.com/emurestapi/latest/05-Appendices-Override.html
             method = self.method
             if self.method == "GET":
                 headers["X-HTTP-Method-Override"] = "GET"
@@ -620,24 +787,7 @@ class EMuAPIResponse:
     @cached_property
     def params(self):
         """The query parameters used to make the request"""
-        body = self.request.body
-        if not body:
-            return {}
-        # Decode the request body if using requests_cache
-        try:
-            body = body.decode("utf-8")
-        except AttributeError:
-            pass
-        params = {}
-        for param in body.split("&"):
-            key, val = param.split("=", 1)
-            val = unquote_plus(val)
-            try:
-                val = json.loads(val)
-            except json.JSONDecodeError:
-                pass
-            params[key] = val
-        return params
+        return _params(self.request.body)
 
     @cached_property
     def hits(self):
@@ -1887,3 +2037,25 @@ def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mappe
         mapped[key] = val
 
     return mapped
+
+
+def _params(req):
+    """The query parameters used to make the request"""
+    body = req.body
+    if not body:
+        return {}
+    # Decode the request body if using requests_cache
+    try:
+        body = body.decode("utf-8")
+    except AttributeError:
+        pass
+    params = {}
+    for param in body.split("&"):
+        key, val = param.split("=", 1)
+        val = unquote_plus(val)
+        try:
+            val = json.loads(val)
+        except json.JSONDecodeError:
+            pass
+        params[key] = val
+    return params

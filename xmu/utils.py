@@ -208,6 +208,23 @@ def strip_mod(field: str) -> str:
 
 
 @cache
+def strip_ref(field: str) -> str:
+    """Strips reference suffixes from a field name
+
+    Parameters
+    ----------
+    field : str
+        field name
+
+    Returns
+    -------
+    str
+        field name without a reference suffix
+    """
+    return re.sub("(Ref(Local)?$|Ref(Local)?_)", "_", field).rstrip("_")
+
+
+@cache
 def get_ref(field: str) -> str:
     """Gets the reference signifier from a field name
 
