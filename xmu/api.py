@@ -337,6 +337,7 @@ class EMuAPI:
         filter_: dict = None,
         limit: int = 10,
         cursor_type: str = "server",
+        autopage: bool = None,
     ):
         """Searches a module for record matching the given filter
 
@@ -359,6 +360,9 @@ class EMuAPI:
             the number of records to return per page
         cursor_type: str, default="server"
             whether the cursor is stored locally or on the server
+        autopage : bool = True
+            whether to automatically page through results if the total number of
+            results exceeds the limit of a given request
 
         Yields
         ------
@@ -374,7 +378,9 @@ class EMuAPI:
             cursorType=cursor_type,
         )
         url = urljoin(self.base_url, module).rstrip("/")
-        return EMuAPIRequest("GET", self, url, data=params, select=select)
+        return EMuAPIRequest(
+            "GET", self, url, data=params, select=select, autopage=autopage
+        )
 
     def to_insert(self, rec, module=None):
         """Prepares a record to be inserted into EMu
@@ -678,7 +684,9 @@ class EMuAPIRequest:
                 headers["Content-Type"] = "application/x-www-form-urlencoded"
                 method = "POST"
             # Prepare the request
-            kwargs = {k: v for k, v in self.kwargs.items() if k != "select"}
+            kwargs = {
+                k: v for k, v in self.kwargs.items() if k not in {"autopage", "select"}
+            }
             self._prepared = requests.Request(method, *self.args, **kwargs).prepare()
         return self._prepared
 
@@ -696,7 +704,9 @@ class EMuAPIRequest:
                 self.api.get_token(refresh=True)
                 self._prepared = None
                 resp = self.send()
-            kwargs = {k: v for k, v in self.kwargs.items() if k == "select"}
+            kwargs = {
+                k: v for k, v in self.kwargs.items() if k in {"autopage", "select"}
+            }
             self._response = EMuAPIResponse(resp, api=self.api, **kwargs)
         return self._response
 
@@ -709,9 +719,11 @@ class EMuAPIResponse:
         response: requests.Response,
         api: EMuAPI,
         select: list[str] | dict[dict] = None,
+        autopage: bool = None,
     ):
         self.api = api
         self.select = select
+        self.autopage = api.autopage if autopage is None else autopage
         self.resolve_attachments = True
         self._first_only = False
         self._response = response
@@ -791,7 +803,7 @@ class EMuAPIResponse:
                             ) from exc
                     else:
                         # Get the next page
-                        if resp.api.autopage and count < resp.hits:
+                        if self.autopage and count < resp.hits:
                             try:
                                 resp = resp.next_page()
                             except ValueError:
