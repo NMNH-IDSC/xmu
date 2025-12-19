@@ -250,7 +250,7 @@ class EMuAPI:
         """
         # Convert an EMuRecord to a patch
         try:
-            patch = patch.to_insert()
+            patch = self.to_patch(patch, module=module)
         except AttributeError:
             pass
         if isinstance(irn, str) and irn.startswith("emu:"):
@@ -258,12 +258,12 @@ class EMuAPI:
         url = self.base_url
         for part in [module, str(irn)]:
             url = urljoin(url, part).rstrip("/") + "/"
-        # HACK: The API will not append to a group that does not exist, so records
-        # that append to groups need to be checked to verify that each group exists.
-        # If not, the first entry is modified to an insert instead of an append.
-        # Note that this will be slow for large numbers of records because each
-        # records needs to be retrieved.
-        if any(("_grp" in e["path"]) for e in patch):
+        # HACK: The API will not append to a table that does not exist, so records
+        # containing tabs/groups need to be checked. If a table does not exist,
+        # the first entry for that table is modified to an insert instead of an
+        # append. Note that this will be slow for large numbers of records because
+        # each record needs to be retrieved individually.
+        if any(("/-" in e["path"] for e in patch)):
             rec = self.retrieve(module, irn).first()
             addressed = {}
             for entry in patch:
@@ -276,7 +276,9 @@ class EMuAPI:
                     entry["path"] = entry["path"].rstrip("/-")
                     entry["value"] = [entry["value"]]
                     addressed[path] = True
-        return EMuAPIRequest("PATCH", self, url.rstrip("/"), json=patch)
+        # Manually encode JSON to ensure correct data types
+        json_rec = json.dumps(patch)
+        return EMuAPIRequest("PATCH", self, url.rstrip("/"), data=json_rec)
 
     def delete(self, module, irn):
         """Deletes a single record by irn
@@ -396,20 +398,25 @@ class EMuAPI:
                 return self.rec_class(rec, module=module).to_insert(self)
             return rec
 
-    def to_patch(self, rec):
+    def to_patch(self, patch, module=None):
         """Creates a patch for the EMu REST API edit operation
 
         Parameters
         ----------
-        rec : EMuRecord
-            the record to translate to a patch
+        patch : EMuRecord | list
+            a patch as a list of entries or a record to translate into a patch
 
         Returns
         -------
-        tuple[str]
-            module, irn, and patch
+        list[dict]
+            patch
         """
-        return self.to_patch(rec)
+        try:
+            return patch.to_patch(self)[2]
+        except AttributeError:
+            if not isinstance(patch, list):
+                return self.rec_class(patch, module=module).to_patch(self)[2]
+        return patch
 
     def to_api_irn(self, module, val):
         """Converts an IRN to the format expected by the API

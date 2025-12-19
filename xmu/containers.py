@@ -26,18 +26,18 @@ from warnings import warn
 from lxml import etree
 import yaml
 
-from .api import EMuAPI
+from .api import EMuAPI, resolve_attachments
 from .io import EMuReader
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
 from .utils import (
-    is_ref,
+    is_group,
     is_nesttab,
     is_nesttab_inner,
+    is_ref,
     is_tab,
     get_mod,
     has_mod,
     strip_mod,
-    strip_ref,
     strip_tab,
 )
 
@@ -1118,26 +1118,27 @@ class EMuGrid(MutableSequence):
         except ValueError:
             return 0
 
-    def __getitem__(self, key: Hashable) -> Any:
+    def __getitem__(self, key: dict | int | str) -> Any:
         if isinstance(key, int):
             return list(self)[key]
 
         if isinstance(key, dict):
             matches = []
             for row in self:
-                for key_, val in key.items():
-                    try:
-                        row_val = self._transform(row.get(key_))
-                    except IndexError:
-                        raise IndexError(
-                            f"Key in query does not appear in all rows: {repr(key_)}"
-                        )
-                    match_val = self._transform(val)
-                    # Match if values are equal or if row_val matches one of
-                    # multiple options given for match_val
-                    if row_val == match_val or (
-                        row_val and match_val and row_val in match_val.split("|")
-                    ):
+                for key_, match_vals in key.items():
+                    # Match is true if the row value matches the match value when
+                    # coerced to the same type
+                    if not isinstance(match_vals, (list, set, tuple)):
+                        match_vals = [match_vals]
+                    row_val = row.get(key_)
+                    if not row_val and row_val != 0:
+                        row_val = None
+                    else:
+                        match_vals = [
+                            row_val.__class__(m) if m or m == 0 else None
+                            for m in match_vals
+                        ]
+                    if row_val in match_vals:
                         continue
                     break
                 else:
@@ -1632,8 +1633,13 @@ class EMuRecord(dict):
         mapped = api._map_attachments(self.module, self.to_dict())
         return group_columns(mapped, module=self.module)
 
-    def to_patch(self):
+    def to_patch(self, api):
         """Creates a patch for the EMu REST API edit operation
+
+        Parameters
+        ----------
+        api : EMuAPI
+            the EMuAPI instance that will be used to insert the record
 
         Returns
         -------
@@ -1641,19 +1647,43 @@ class EMuRecord(dict):
             module, irn, and patch
         """
         rec = self.group_columns()
-        irn = rec.pop("irn")
+        irn = rec.pop("irn", None)
         patch = []
         for key, val in rec.items():
             mod = get_mod(key)
             path = "/" + strip_mod(key).lstrip("/")
             if not mod:
-                if val:
+                if (val or val == 0) and (is_tab(key) or is_group(key)):
+                    # Must include both add and replace in case table does not exist
+                    patch.append({"op": "add", "path": path, "value": val})
+                    patch.append({"op": "replace", "path": path, "value": val})
+                elif val:
                     patch.append({"op": "add", "path": path, "value": val})
                 else:
                     patch.append({"op": "remove", "path": path})
             elif mod == "+":
                 for row in val:
                     patch.append({"op": "add", "path": path + "/-", "value": row})
+            elif mod.endswith("="):
+                # Row indexes in the API are zero-based but row indexes in the CSV
+                # and XML imports are one-based. The latter approach is adopted here
+                # for consistency with the other import mechanisms.
+                idx = int(mod.rstrip("="))
+                if idx > 0:
+                    idx -= 1
+                for row in val:
+                    entry = {"op": "replace", "path": f"{path}/{idx}", "value": row}
+                    patch.append(entry)
+        # Map attachments to IRNs
+        for entry in patch:
+            col = entry["path"].split("/")[1]
+            if is_ref(col):
+                if isinstance(entry["value"], list):
+                    entry["value"] = [
+                        api._map_to_irn(self.module, col, v) for v in entry["value"]
+                    ]
+                else:
+                    entry["value"] = api._map_to_irn(self.module, col, entry["value"])
         return self.module, irn, patch
 
 
