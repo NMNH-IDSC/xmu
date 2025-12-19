@@ -200,9 +200,9 @@ class EMuAPI:
             the complete new record.
         """
         url = urljoin(self.base_url, module).rstrip("/") + "/"
-        return EMuAPIRequest(
-            "POST", self, url.rstrip("/"), json=self.to_insert(rec, module=module)
-        )
+        # Manually encode JSON to ensure correct data types
+        json_rec = json.dumps(self.to_insert(rec, module=module))
+        return EMuAPIRequest("POST", self, url.rstrip("/"), data=json_rec)
 
     def insert_replace(self, module, irn, rec):
         """Inserts or replaces the record with the given IRN
@@ -226,9 +226,9 @@ class EMuAPI:
         url = self.base_url
         for part in [module, str(irn)]:
             url = urljoin(url, part).rstrip("/") + "/"
-        return EMuAPIRequest(
-            "PUT", self, url.rstrip("/"), json=self.to_insert(rec, module=module)
-        )
+        # Manually encode JSON to ensure correct data types
+        json_rec = json.dumps(self.to_insert(rec, module=module))
+        return EMuAPIRequest("PUT", self, url.rstrip("/"), data=json_rec)
 
     def edit(self, module, irn, patch):
         """Edits the record specified by the given IRN
@@ -633,6 +633,14 @@ class EMuAPIRequest:
         else:
             self.session = self.api.session
 
+    def __getattr__(self, attr):
+        try:
+            return getattr(self.response, attr)
+        except AttributeError as exc:
+            raise AttributeError(
+                f"{repr(self.__class__.__name__)} object has no attribute {repr(attr)}"
+            ) from exc
+
     def __str__(self):
         return f"<{self.__class__.__name__} method={repr(self.prepared.method)} url={repr(self.prepared.url)} body={repr(self.prepared.body)}>"
 
@@ -642,8 +650,8 @@ class EMuAPIRequest:
     def __iter__(self):
         return iter(self.response)
 
-    def first(self):
-        return self.response.first()
+    def __len__(self):
+        return len(self.response)
 
     @property
     def prepared(self):
@@ -662,6 +670,9 @@ class EMuAPIRequest:
 
     def first(self):
         return self.send().first()
+
+    def records(self):
+        return self.send().records()
 
     def prepare(self):
         """Prepares the request
@@ -739,7 +750,10 @@ class EMuAPIResponse:
             )
 
     def __len__(self):
-        return len(json.loads(self.headers["Next-Offsets"]))
+        try:
+            return len(json.loads(self.headers["Next-Offsets"]))
+        except KeyError:
+            return 0
 
     def __iter__(self):
 
@@ -799,7 +813,7 @@ class EMuAPIResponse:
                             ) from exc
                         except NameError:
                             raise ValueError(
-                                f"No records found: {repr(resp.text)} ({resp.request.url}, {resp.params})"
+                                f"No records found: {repr(resp.text)} ({resp.request.url}, {resp.request.body})"
                             ) from exc
                     else:
                         # Get the next page
@@ -827,7 +841,7 @@ class EMuAPIResponse:
     @cached_property
     def params(self):
         """The query parameters used to make the request"""
-        return _params(self.request.body)
+        return _params(self.request)
 
     @cached_property
     def hits(self):
@@ -885,14 +899,15 @@ class EMuAPIResponse:
             the result from the next page
         """
         try:
-            resp = self.api.get(
+            return EMuAPIRequest(
+                "GET",
+                self.api,
                 self.url,
                 data=self.request.body,
                 headers={"Next-Search": self.headers["Next-Search"]},
             )
         except KeyError:
             raise ValueError("Next-Search not found in headers")
-        return resp
 
     def defer_attachments(self, rec):
         """Defers attachments in record
@@ -1490,6 +1505,31 @@ def order(val: str = "asc", col: str = None) -> dict:
     return _build_cond(val, col=col, op="order")
 
 
+def add(path, value, module=None):
+    """Builds an add entry for a patch for the edit endpoint"""
+    return _build_entry("add", module=module, path=path, value=value)
+
+
+def move(from_, path, module=None):
+    """Builds a move entry for a patch for the edit endpoint"""
+    return _build_entry("move", module=module, **{"from": from_, "path": path})
+
+
+def replace(path, value, module=None):
+    """Builds a replace entry for a patch for the edit endpoint"""
+    return _build_entry("replace", module=module, path=path, value=value)
+
+
+def remove(path, module=None):
+    """Builds a remove entry for a patch for the edit endpoint"""
+    return _build_entry("remove", module=module, path=path)
+
+
+def test(path, value, module=None):
+    """Builds a test entry for a patch for the edit endpoint"""
+    return _build_entry("test", module=module, path=path, value=value)
+
+
 def emu_escape(val: str) -> str:
     """Escapes a string according to EMu escape syntax
 
@@ -1800,6 +1840,13 @@ def _build_multivalue_cond(val: Any, op: str, col: str = None):
             pass
         conds.append(cond)
     return or_(conds) if len(conds) > 1 else conds[0]
+
+
+def _build_entry(op, *, module=None, **kwargs):
+    """Builds a patch entry"""
+    entry = {"op": op}
+    entry.update(kwargs)
+    return entry
 
 
 def _val_to_query(

@@ -3,6 +3,7 @@
 from .api import (
     EMuAPI,
     EMuAPIResponse,
+    add,
     and_,
     contains,
     emu_escape,
@@ -15,6 +16,7 @@ from .api import (
     gte,
     lt,
     lte,
+    move,
     not_,
     or_,
     order,
@@ -23,8 +25,11 @@ from .api import (
     proximity,
     range_,
     regex,
+    remove,
+    replace,
     resolve_attachments,
     stemmed,
+    test,
 )
 from .containers import (
     EMuColumn,
