@@ -55,7 +55,7 @@ from xmu import (
     write_xml,
     write_group,
 )
-from xmu.api import _is_attachment, _is_compiled, _prep_filter, _val_to_query
+from xmu.api import is_attachment, _is_compiled, _prep_filter, _val_to_query
 from xmu.types import ExtendedDate
 
 os.chdir("tests")
@@ -599,6 +599,7 @@ def test_schema_get(schema_file):
             "EmuTable_tab",
             "EmuRef_tab",
         ],
+        "XMuGroupName": "EmuGrid3_grp",
         "XMuGroupOrig": ["EmuDate0", "EmuRef_tab"],
     }
     assert schema.get("Schema.emain.columns.EmuInvalid") is None
@@ -619,6 +620,7 @@ def test_schema_fields(schema_file):
                 "XMuGroup": [
                     "EmuClientTable1Ref_tab",
                 ],
+                "XMuGroupName": "EmuClientGrid_grp",
                 "XMuGroupOrig": [
                     "EmuClientTable1Ref_tab",
                 ],
@@ -656,6 +658,7 @@ def test_schema_fields(schema_file):
                     "EmuTable_tab",
                     "EmuRef_tab",
                 ],
+                "XMuGroupName": "EmuGrid3_grp",
                 "XMuGroupOrig": [
                     "EmuDate0",
                     "EmuRef_tab",
@@ -719,6 +722,7 @@ def test_schema_fields(schema_file):
                     "EmuTable_tab",
                     "EmuRef_tab",
                 ],
+                "XMuGroupName": "EmuGrid1_grp",
                 "XMuGroupOrig": [
                     "EmuDate0",
                     "EmuNestedTable_nesttab",
@@ -771,6 +775,7 @@ def test_schema_fields(schema_file):
                     "EmuNestedTable_nesttab",
                     "EmuTable_tab",
                 ],
+                "XMuGroupName": "EmuMapToAttachment_grp",
                 "XMuGroupOrig": [
                     "EmuRef_tab",
                 ],
@@ -785,6 +790,7 @@ def test_schema_fields(schema_file):
                     "EmuNestedTable_nesttab",
                     "EmuRef_tab",
                 ],
+                "XMuGroupName": "EmuGrid2_grp",
                 "XMuGroupOrig": [
                     "EmuDate0",
                     "EmuTable_tab",
@@ -848,6 +854,7 @@ def test_schema_fields(schema_file):
                 "XMuGroup": [
                     "EmuRefTable_tab",
                 ],
+                "XMuGroupName": "EmuGridInReference_grp",
                 "XMuGroupOrig": [
                     "EmuRefTable_tab",
                 ],
@@ -2807,4 +2814,4 @@ def test_prep_or_filter(val):
     ],
 )
 def test_is_attachment(key, val, expected):
-    assert _is_attachment(key, val) == expected
+    assert is_attachment(key, val) == expected
