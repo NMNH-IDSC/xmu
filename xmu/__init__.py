@@ -23,6 +23,7 @@ from .api import (
     proximity,
     range_,
     regex,
+    resolve_attachments,
     stemmed,
 )
 from .containers import (
@@ -34,6 +35,7 @@ from .containers import (
     EMuRecord,
     EMuSchema,
     group_columns,
+    ungroup_columns,
 )
 from .io import EMuReader, clean_xml, write_csv, write_group, write_import, write_xml
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
@@ -43,6 +45,7 @@ from .utils import (
     get_ref,
     get_tab,
     has_mod,
+    is_group,
     is_nesttab,
     is_nesttab_inner,
     is_ref,

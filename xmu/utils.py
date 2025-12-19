@@ -15,6 +15,9 @@ NESTTAB_SUFFIXES = ("_nesttab",)
 #: tuple : suffixes that designate inner nested tables in EMu
 NESTTAB_INNER_SUFFIXES = ("_nesttab_inner",)
 
+#: tuple : suffixes that designate groups in EMu
+GROUP_SUFFIXES = ("_grp", "_subgrp")
+
 #: str : pattern that matches table suffixes
 TAB_PATTERN = "(" + "|".join(TAB_SUFFIXES) + ")$"
 
@@ -23,6 +26,26 @@ REF_PATTERN = "(" + "|".join(REF_SUFFIXES) + ")$"
 
 #: str : pattern that matches update modifiers
 MOD_PATTERN = r"\(\d*[=\+\-]\)$"
+
+#: str : pattern that matches update modifiers
+GROUP_PATTERN = "(" + "|".join(GROUP_SUFFIXES) + ")$"
+
+
+@cache
+def is_group(field: str) -> bool:
+    """Checks if a field name is a group or subgroup
+
+    Parameters
+    ----------
+    field : str
+        field name
+
+    Returns
+    -------
+    bool
+        True if field name is a group or subgroup, False if not
+    """
+    return strip_mod(field).endswith(GROUP_SUFFIXES)
 
 
 @cache
@@ -314,7 +337,11 @@ def flatten(obj: dict, path: list = None, result: dict = None) -> dict:
             path.pop()
     elif isinstance(obj, (list, tuple)):
         for i, val in enumerate(obj):
-            path.append(f"{i + 1}.{strip_tab(path[-1])}")
+            key = path[-1]
+            if is_group(key):
+                path.append(str(i + 1))
+            else:
+                path.append(f"{i + 1}.{strip_tab(key)}")
             flatten(val, path, result)
             path.pop()
     else:

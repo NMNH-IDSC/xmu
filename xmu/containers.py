@@ -1378,7 +1378,14 @@ class EMuRecord(dict):
                 rec = json.loads(rec)
             elif isinstance(rec, self.__class__):
                 rec = rec.copy()
-            self.update(rec)
+            try:
+                self.update(rec)
+            except (KeyError, TypeError) as exc:
+                # Handle API responses
+                try:
+                    self.update(ungroup_columns(resolve_attachments(rec)))
+                except:
+                    raise exc
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({pformat(self)})"
@@ -1656,9 +1663,14 @@ class EMuEncoder(json.JSONEncoder):
     def default(self, o: Any) -> str:
         if isinstance(o, dict):
             return dict(o)
-        elif isinstance(o, list):
+        if isinstance(o, list):
             return list(o)
-        return str(o)
+        if isinstance(o, int):
+            return o
+        try:
+            return o.emu_str()
+        except AttributeError:
+            return str(o)
 
 
 def group_columns(rec, module=None):
@@ -1699,16 +1711,98 @@ def group_columns(rec, module=None):
                 if mod:
                     mod = f"({mod})"
                 if is_nesttab(key):
+                    # Nested columns in the same table are combined into a single
+                    # subgroup named based on the containing table
                     stripped = strip_tab(key)
-                    subgrp = strip_ref(stripped)  # subgroup drops Ref if present
-                    row[f"{subgrp}_subgrp{mod}"] = [{stripped: v} for v in row[key]]
+                    subgrp = f"{strip_mod(group).replace('_grp', '')}_subgrp"
+                    for i, val in enumerate(row[key]):
+                        try:
+                            row[subgrp][i][stripped] = val
+                        except IndexError:
+                            row[subgrp].append({stripped: val})
+                        except KeyError:
+                            row[subgrp] = [{stripped: val}]
                     del row[key]
                 elif is_tab(key):
                     row[strip_tab(key)] = row[key]
                     del row[key]
-
             grouped.setdefault(group, []).append(row)
     return grouped
+
+
+def ungroup_columns(rec: dict, key=None, ungrouped=None):
+    """Ungroups columns in the
+
+    Parameters
+    ----------
+    rec : EMuRecord | dict
+        an EMu record
+    key : str
+        the current key. Omitted from the initial call.
+    ungrouped : dict
+        the record with columns ungrouped. Omitted from the initial call.
+
+    Returns
+    -------
+    dict
+        the EMu record with fields in
+    """
+
+    if ungrouped is None:
+        ungrouped = {}
+
+    # Iterate dicts
+    if isinstance(rec, dict):
+        for key_, val in rec.items():
+            ungrouped_ = ungrouped.setdefault(key_, {}) if is_ref(key_) else ungrouped
+            ungroup_columns(val, key=key_, ungrouped=ungrouped_)
+
+    # Map tables. Groups are based on definitions in the schema.
+    elif key.endswith("_grp"):
+
+        keys = []
+        for row in rec:
+            keys.extend(row)
+        keys = set(keys)
+
+        grid = {}
+        for row in rec:
+            for key in keys:
+                grid.setdefault(key, []).append(row.get(key))
+
+        for key, vals in grid.items():
+            if any(vals):
+                ungroup_columns(val, key=key, ungrouped=ungrouped)
+
+    # Map nested tables
+    elif key.endswith("_subgrp"):
+        keys = []
+        for row in rec:
+            if row:
+                for inner_row in row:
+                    keys.extend(inner_row)
+        keys = set(keys)
+
+        grid = {k: [] for k in keys}
+        for row in rec:
+            for val in grid.values():
+                val.append([])
+            if row:
+                for inner_row in row:
+                    for key in keys:
+                        grid[key][-1].append(inner_row.get(key))
+
+        for key, vals in grid.items():
+            if any(vals):
+                ungroup_columns(val, key=key, ungrouped=ungrouped)
+
+    elif key == "irn" and not isinstance(rec, int):
+        ungrouped[key] = int(rec.split("/")[-1])
+
+    else:
+        ungrouped[key] = rec
+
+    return ungrouped
 
 
 def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -> Any:
@@ -1832,7 +1926,7 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
             except (TypeError, ValueError) as exc:
                 # Handle IRNs returned by the API
                 if (
-                    is_ref(field)
+                    field == "irn"
                     and isinstance(child, str)
                     and child.startswith("emu:")
                 ):

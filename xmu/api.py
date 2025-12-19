@@ -12,8 +12,8 @@ from urllib.parse import unquote_plus, urljoin
 
 import requests
 
-from .types import EMuDate, EMuLatitude, EMuLongitude, EMuTime
-from .utils import is_ref
+from .types import EMuCoord, EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
+from .utils import flatten, get_mod, is_group, is_ref, strip_mod
 
 
 logger = logging.getLogger(__name__)
@@ -42,10 +42,6 @@ class EMuAPI:
         exceeds the limit of a given request
     config_path : str | Path
         path to a TOML config file used to set url, username, password, and autopage
-    parser : EMuAPIParser, optional
-        the parser object used to parse individual records. The default EMuAPIParser
-        class returns a close approximation of the format used by EMuRecord. If None,
-        records will be returned as formatted by the API.
 
     Attributes
     ----------
@@ -67,7 +63,6 @@ class EMuAPI:
         password: str = None,
         autopage: bool = None,
         config_path: str | Path = "emurestapi.toml",
-        parser: "EMuAPIParser" = None,
     ):
         self.config_path = config_path
         try:
@@ -90,10 +85,6 @@ class EMuAPI:
         self.url = url.rstrip("/") + "/"
         self.tenant = tenant
         self.use_emu_syntax = True
-
-        # Parser must be assigned when the instance is created
-        self._parser = None
-        self.parser = parser
 
         # The autopage parameter is passed to EMuAPIResponse but it is cleaner
         # to implement it here
@@ -441,6 +432,42 @@ class EMuAPI:
             return f"emu:/{self.tenant}/{module}/{val}"
         return val
 
+    def flatten(self, module, rec):
+        """Flattens record to a one-level dictionary using the API path syntax
+
+        Parameters
+        ----------
+        module : str
+            the backend name of an EMu module
+        rec : dict
+            an EMu record
+
+        Returns
+        -------
+        dict
+            record as a one-level dictionary
+        """
+        dct = {}
+        if not any((is_group(k) for k in rec)):
+            rec = self.rec_class(rec, module=module).group_columns()
+        for key, val in flatten(rec).items():
+            parts = [str(int(s) - 1) if s.isnumeric() else s for s in key.split(".")]
+            mod = get_mod(parts[0])
+            parts[0] = strip_mod(parts[0])
+            if mod == "+":
+                parts[1] = "-"
+            elif mod.endswith("="):
+                idx = int(mod.strip("="))
+                if idx:
+                    idx -= 1
+                parts[1] = str(idx)
+            elif mod == "-":
+                raise ValueError(
+                    "The EMu REST API does not support the prepend operator"
+                )
+            dct["/" + "/".join(parts)] = val
+        return dct
+
     def _map_to_irn(self, module, col, val):
         """Maps a record to an IRN
 
@@ -704,9 +731,7 @@ class EMuAPIResponse:
         else:
             try:
                 rec = self.json()["data"]
-                if self.api.parser is not None:
-                    rec = self.api.parser.parse(self.module, rec, select=self.select)
-                elif self.resolve_attachments:
+                if self.resolve_attachments:
                     # Resolving attachments individually is slow, so attachments
                     # are deferred until a number of records have been processed
                     # OR the user tries to access a key
@@ -724,11 +749,7 @@ class EMuAPIResponse:
                         records = []
                         for match in resp.json()["matches"]:
                             rec = match["data"]
-                            if resp.api.parser is not None:
-                                rec = resp.api.parser.parse(
-                                    self.module, rec, select=resp.select
-                                )
-                            elif self.resolve_attachments:
+                            if self.resolve_attachments:
                                 # Resolving attachments individually is slow, so
                                 # attachments are deferred until a number of records
                                 # have been processed OR the user tries to access a key
@@ -881,12 +902,12 @@ class EMuAPIResponse:
                 if isinstance(val, (list, tuple)):
                     vals = []
                     for val in val:
-                        if _is_attachment(key, val):
+                        if is_attachment(key, val):
                             vals.append(attach(val, self.api, json.dumps(select)))
                         else:
                             vals.append(val)
                     rec[key] = vals
-                elif _is_attachment(key, val):
+                elif is_attachment(key, val):
                     rec[key] = attach(val, self.api, json.dumps(select))
                 elif isinstance(val, str):
                     rec[key] = val
@@ -1008,6 +1029,24 @@ class DeferredAttachment:
                     ).first()
 
         return self
+
+
+class APIEncoder(json.JSONEncoder):
+    """Encodes objects for the EMu REST API"""
+
+    def default(self, o: Any) -> str:
+        if isinstance(o, dict):
+            return dict(o)
+        if isinstance(o, list):
+            return list(o)
+        if isinstance(o, EMuFloat) and not isinstance(o, EMuCoord):
+            return o.to_number(False)
+        if isinstance(o, int):
+            return o
+        try:
+            return o.emu_str()
+        except AttributeError:
+            return str(o)
 
 
 @cache
@@ -1454,6 +1493,29 @@ def emu_escape(val: str) -> str:
     val = val.replace(r">\=", ">=")
     val = val.replace(r"<\=", "<=")
     return val
+
+
+def resolve_attachments(rec, as_dict=True):
+    """Recursively resolves all attachments in a record"""
+    if isinstance(rec, DeferredAttachment):
+        return rec.data if as_dict else rec.resolve()
+    elif isinstance(rec, dict):
+        for key, val in rec.items():
+            rec[key] = resolve_attachments(val, as_dict=as_dict)
+        return rec
+    elif isinstance(rec, list):
+        return [resolve_attachments(val, as_dict=as_dict) for val in rec]
+    else:
+        return rec
+
+
+def is_attachment(key, val):
+    """Tests if key-value pair is an attachment"""
+    return bool(
+        is_ref(key)
+        and isinstance(val, str)
+        and (val.isnumeric() or re.match(r"emu:/[a-z]+/[a-z]+/\d+$", val))
+    )
 
 
 def emu_unescape(val: str) -> str:
@@ -1914,97 +1976,6 @@ def _val_to_query(
         conds.append(range_(col=col, **kwargs))
 
     return and_(conds) if len(conds) > 1 else conds[0]
-
-
-def _is_attachment(key, val):
-    """Tests if key-value pair is an attachment"""
-    return bool(
-        is_ref(key)
-        and isinstance(val, str)
-        and (val.isnumeric() or re.match(r"emu:/[a-z]+/[a-z]+/\d+$", val))
-    )
-
-
-def _parse_api(module: str, val: dict, api: EMuAPI, select=None, key=None, mapped=None):
-    """Parses API response to remove field groupings"""
-
-    if mapped is None:
-        mapped = {}
-
-    if key and not key.endswith(("_grp", "_subgrp")):
-        key = EMuAPI.schema.map_short_name(module, key)
-        try:
-            select = select[key]
-        except (KeyError, TypeError):
-            pass
-
-    # Iterate dicts
-    if isinstance(val, dict):
-        for key, val in val.items():
-            _parse_api(module, val, api, select=select, key=key, mapped=mapped)
-
-    # Map tables. Groups are based on definitions in the schema.
-    elif key.endswith("_grp"):
-
-        keys = []
-        for row in val:
-            keys.extend(row)
-        keys = set(keys)
-
-        grid = {}
-        for row in val:
-            for key in keys:
-                grid.setdefault(key, []).append(row.get(key))
-
-        for key, vals in grid.items():
-            if any(vals):
-                _parse_api(module, vals, api, select=select, key=key, mapped=mapped)
-
-    # Map nested tables
-    elif key.endswith("_subgrp"):
-        keys = []
-        for row in val:
-            if row:
-                for inner_row in row:
-                    keys.extend(inner_row)
-        keys = set(keys)
-
-        grid = {k: [] for k in keys}
-        for row in val:
-            for val in grid.values():
-                val.append([])
-            if row:
-                for inner_row in row:
-                    for key in keys:
-                        grid[key][-1].append(inner_row.get(key))
-
-        for key, vals in grid.items():
-            if any(vals):
-                _parse_api(module, vals, api, select=select, key=key, mapped=mapped)
-
-    # Simplify IRNs. Note that multimedia references use Ref fields and IRN-like text.
-    # These are handled by the emu prefix check.
-    elif val and is_ref(key):
-        if isinstance(val, (list, tuple)):
-            vals = []
-            for val in val:
-                if _is_attachment(key, val):
-                    vals.append(attach(val, api, json.dumps(select)))
-                else:
-                    vals.append(val)
-            mapped[key] = vals
-        elif _is_attachment(key, val):
-            mapped[key] = attach(val, api, json.dumps(select))
-        elif isinstance(val, str):
-            mapped[key] = val
-
-    elif key == "irn" and not isinstance(val, int):
-        mapped[key] = int(val.split("/")[-1])
-
-    else:
-        mapped[key] = val
-
-    return mapped
 
 
 def _params(req):
