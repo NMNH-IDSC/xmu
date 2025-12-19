@@ -8,7 +8,6 @@ import pytest
 
 from xmu import (
     EMuAPI,
-    EMuAPIParser,
     EMuLatitude,
     EMuRecord,
     EMuSchema,
@@ -349,8 +348,8 @@ def test_retrieve(api):
     assert resp_search.first()["irn"] == resp_retrieve.first()["irn"]
 
 
-def test_search_with_parser(api):
-    api.parser = EMuAPIParser()
+@pytest.mark.skip("Temporary error searching collection events")
+def test_emu_record_from_response(api):
     resp = api.search(
         "ecollectionevents",
         select=["LatLatitude_nesttab"],
@@ -358,31 +357,10 @@ def test_search_with_parser(api):
         limit=1,
     )
     rec = EMuRecord(resp.first(), module="ecollectionevents")
-    try:
-        assert isinstance(rec["LatLatitude_nesttab"][0][0], EMuLatitude)
-    except AssertionError:
-        raise
-    finally:
-        api.parser = None
+    assert isinstance(rec["LatLatitude_nesttab"][0][0], EMuLatitude)
 
 
-def test_retrieve_with_parser(api):
-    api.parser = EMuAPIParser()
-    resp_search = api.search(
-        "ecollectionevents",
-        filter_={"LatCentroidLatitude0": ">80"},
-        limit=1,
-    )
-    resp_retrieve = api.retrieve("ecollectionevents", resp_search.first()["irn"])
-    rec = EMuRecord(resp_retrieve.first(), module="ecollectionevents")
-    try:
-        assert isinstance(rec["LatLatitude_nesttab"][0][0], EMuLatitude)
-    except AssertionError:
-        raise
-    finally:
-        api.parser = None
-
-
+@pytest.mark.skip("Temporary error searching collection events")
 def test_deferred_autoresolve(api):
     resp = api.search(
         "ecatalogue",

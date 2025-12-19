@@ -893,38 +893,6 @@ class EMuAPIResponse:
         return rec
 
 
-class EMuAPIParser:
-    """Parses responses from the EMu API"""
-
-    def __init__(self):
-        self.rec_class = dict
-        self.api = None
-
-    def parse(self, module: str, rec: dict, select: list | dict[dict] = None):
-        """Parses a record returned by the EMu API
-
-        Only attachments mapped in the original select parameter are resolved.
-
-        Parameters
-        ----------
-        rec : dict
-            a record retrieved from the EMu API
-        module : str
-            the backend name of the EMu module
-        select : list | dict
-            the fields to return
-
-        Returns
-        -------
-        dict
-            the record with all attachments resolved
-        """
-        parsed = _parse_api(module, rec, self.api, select=select)
-        if self.rec_class != dict:
-            parsed = self.rec_class(parsed, module=module)
-        return parsed
-
-
 class DeferredAttachment:
     """An attached record defined by a module and IRN
 

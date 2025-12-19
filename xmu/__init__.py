@@ -2,7 +2,6 @@
 
 from .api import (
     EMuAPI,
-    EMuAPIParser,
     EMuAPIResponse,
     and_,
     contains,
