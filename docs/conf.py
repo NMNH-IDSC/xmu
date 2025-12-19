@@ -65,3 +65,6 @@ autodoc_member_order = "bysource"
 
 # Allow both rST and markdown files for docs
 source_suffix = [".md", ".rst"]
+
+# Do not show full path to class and function names
+add_module_names = False
