@@ -7,6 +7,7 @@ import re
 from calendar import monthrange
 from collections import namedtuple
 from datetime import MINYEAR, MAXYEAR, date, datetime, time
+from decimal import Decimal
 from math import log10, modf
 from typing import Any
 
@@ -56,7 +57,7 @@ class EMuType:
         return f"{self.__class__.__name__}('{str(self)}')"
 
     def __eq__(self, other: Any) -> bool:
-        if self.value == other:
+        if not self.always_compare_range and self.value == other:
             return True
         try:
             other = self.coerce(other)
@@ -375,7 +376,10 @@ class EMuFloat(EMuType):
     @property
     def dec_places(self) -> int:
         """Number of decimal places from the formatting string"""
-        return int(self.format.strip("{:.f}"))
+        try:
+            return int(self.format.strip("{:.f}"))
+        except ValueError:
+            return 0
 
     def round(self, dec_places: int) -> "EMuFloat":
         """Rounds the float to the given number of decimal places
@@ -391,6 +395,33 @@ class EMuFloat(EMuType):
             the rounded value
         """
         return self.__class__(("{:." + str(dec_places) + "f}").format(self))
+
+    def to_decimal(self) -> Decimal:
+        """Converts the object to a decimal
+
+        Returns
+        -------
+        decimal.Decimal
+            decimal object
+        """
+        return Decimal(str(self))
+
+    def to_number(self, use_decimal: bool = True) -> int | float | Decimal:
+        """Converts to the simplest numeric format possible
+
+        Parameters
+        ----------
+        use_decimal : bool
+            whether to use the decimal.Decimal class to return floats
+
+        Returns
+        -------
+        int | float | Decimal
+            value as a number
+        """
+        if not self.dec_places:
+            return int(self)
+        return self.to_decimal() if use_decimal else float(self)
 
 
 class EMuCoord(EMuFloat):
@@ -565,6 +596,7 @@ class EMuCoord(EMuFloat):
                 f"unc_m cannot be smaller than the uncertainty implied by verbatim ({orig_unc_m} m)"
             )
 
+        tenths = True
         last_unc_m = 1e7
         for key, ref_unc_m in self.dms_unc_m.items():
             ref_unc_m = self._round_to_exp_10(ref_unc_m)
@@ -590,15 +622,22 @@ class EMuCoord(EMuFloat):
         for attr in ["degrees", "minutes", "seconds"]:
             fractional, integer = modf(val)
             if key == attr and tenths:
-                integer += round(fractional, 1)
-                parts.append(f"{integer:.1f}")
+                parts.append(integer + round(fractional, 1))
             else:
-                parts.append(str(int(integer)))
+                parts.append(integer)
             if key == attr:
                 break
             val = fractional * 60
 
-        return f"{' '.join([str(p) for p in parts])} {self.hemisphere}"
+        # Certain coordinates will result in values of 60 that need to be fixed
+        if len(parts) == 3 and parts[2] == 60:
+            parts[1] += 1
+            del parts[2]
+        if len(parts) >= 2 and parts[1] == 60:
+            parts[0] += 1
+            parts[1] = 0
+
+        return f"{' '.join([re.sub(r"\.0*$", "", str(p)) for p in parts])} {self.hemisphere}"
 
     def to_dec(self, unc_m: int = None) -> str:
         """Expresses coordinate as a decimal
@@ -675,7 +714,10 @@ class EMuCoord(EMuFloat):
     @staticmethod
     def _round_to_exp_10(val: int | float) -> int:
         """Rounds value to an exponent of 10"""
-        frac, exp = modf(log10(val))
+        try:
+            frac, exp = modf(log10(val))
+        except ValueError:
+            return 0
         if frac > log10(4.99999999):
             exp += 1
         return int(10**exp)
@@ -768,7 +810,8 @@ class EMuDate(EMuType):
         "month": ("%B", "%b", "%m", "%-m"),
         "year": ("%Y", "%y"),
     }
-    formats = {"day": "%Y-%m-%d", "month": "%Y-%m-", "year": "%Y"}
+    str_formats = {"day": "%Y-%m-%d", "month": "%b %Y", "year": "%Y"}
+    emu_formats = {"month": "%Y-%m-"}
 
     def __init__(self, *val, fmt: str = None):
         """Initialize an EMuDate object
@@ -874,7 +917,7 @@ class EMuDate(EMuType):
                 if any((d in fmt for d in directives)):
                     self.value = self.strptime(str(val), fmt)
                     self.kind = kind
-                    self.format = self.formats[kind]
+                    self.format = self.str_formats[kind]
                     fmts.clear()
                     break
 
@@ -882,7 +925,7 @@ class EMuDate(EMuType):
             try:
                 self.value = self.strptime(str(val), fmt)
                 self.kind = kind
-                self.format = self.formats[kind]
+                self.format = self.str_formats[kind]
                 break
             except (TypeError, ValueError):
                 pass
@@ -946,7 +989,7 @@ class EMuDate(EMuType):
             return f"{self} BC".replace(year, year.lstrip("-"))
         if 0 <= self.year < 100:
             return f"{self} AD"
-        return str(self)
+        return self.strftime(self.emu_formats.get(self.kind, self.format))
 
     @property
     def min_value(self) -> date | ExtendedDate:

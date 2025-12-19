@@ -1620,20 +1620,64 @@ def test_dtype_base():
 
 
 @pytest.mark.parametrize(
-    "date_string,kind,year,month,day,formatted,min_val,max_val",
+    "date_string,kind,year,month,day,as_str,as_emu_str,min_val,max_val",
     [
-        ("2022-02-25", "day", 2022, 2, 25, "2022-02-25", "2022-02-25", "2022-02-25"),
-        ("Feb 2022", "month", 2022, 2, None, "Feb 2022", "2022-02-01", "2022-02-28"),
-        ("2022", "year", 2022, None, None, "2022", "2022-01-01", "2022-12-31"),
+        (
+            "2022-02-25",
+            "day",
+            2022,
+            2,
+            25,
+            "2022-02-25",
+            "2022-02-25",
+            "2022-02-25",
+            "2022-02-25",
+        ),
+        (
+            "2022-02-",
+            "month",
+            2022,
+            2,
+            None,
+            "Feb 2022",
+            "2022-02-",
+            "2022-02-01",
+            "2022-02-28",
+        ),
+        (
+            "2022",
+            "year",
+            2022,
+            None,
+            None,
+            "2022",
+            "2022",
+            "2022-01-01",
+            "2022-12-31",
+        ),
+        (
+            "Feb 2022",
+            "month",
+            2022,
+            2,
+            None,
+            "Feb 2022",
+            "2022-02-",
+            "2022-02-01",
+            "2022-02-28",
+        ),
     ],
 )
-def test_dtype_date(date_string, kind, year, month, day, formatted, min_val, max_val):
+def test_dtype_date(
+    date_string, kind, year, month, day, as_str, as_emu_str, min_val, max_val
+):
     val = EMuDate(date_string)
     assert val.kind == kind
     assert val.year == year
     assert val.month == month
     assert val.day == day
-    assert str(val) == formatted
+    assert str(val) == as_str
+    assert val.emu_str() == as_emu_str
     assert val.min_value == date(*[int(n) for n in min_val.split("-")])
     assert val.max_value == date(*[int(n) for n in max_val.split("-")])
 
@@ -1803,8 +1847,8 @@ def test_dtype_contains(date_string, expected):
     "date_string,exp_str,exp_emu",
     [
         ("99999-01-01", "99999-01-01", "99999-01-01"),
-        ("99999-01-", "Jan 99999", "Jan 99999"),
-        ("Jan 99999", "Jan 99999", "Jan 99999"),
+        ("99999-01-", "Jan 99999", "99999-01-"),
+        ("Jan 99999", "Jan 99999", "99999-01-"),
         ("99999", "99999", "99999"),
         (99999, "99999", "99999"),
         ("-99999-01-01", "-99999-01-01", "99999-01-01 BC"),
@@ -1847,7 +1891,7 @@ def test_dtype_date_parse_failed():
 
 
 def test_dtype_date_invalid_directive():
-    date = EMuDate("1970-01-")
+    date = EMuDate("Jan 1970")
     with pytest.raises(ValueError, match=r"Invalid directives for \(1970, 1, None\)"):
         date.strftime("%Y-%m-%d")
 
