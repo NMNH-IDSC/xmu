@@ -1760,7 +1760,7 @@ def group_columns(rec, module=None):
     return grouped
 
 
-def ungroup_columns(rec: dict, key=None, ungrouped=None):
+def ungroup_columns(rec: dict, module: str, key=None, ungrouped=None):
     """Ungroups columns in the
 
     Parameters
@@ -1778,18 +1778,25 @@ def ungroup_columns(rec: dict, key=None, ungrouped=None):
         the EMu record with fields in
     """
 
+    full_key = key
+    orig_module = module
     if ungrouped is None:
         ungrouped = {}
+    elif is_ref(key):
+        full_key = _map_short_name(module, key)
+        module = _get_field_info(module, full_key)["RefTable"]
 
     # Iterate dicts
     if isinstance(rec, dict):
         for key_, val in rec.items():
-            ungrouped_ = ungrouped.setdefault(key_, {}) if is_ref(key_) else ungrouped
-            ungroup_columns(val, key=key_, ungrouped=ungrouped_)
+            # Create an empty container for refs
+            ungrouped_ = ungrouped
+            if is_ref(key_) and not isinstance(val, list):
+                ungrouped_ = ungrouped.setdefault(key_, {})
+            ungroup_columns(val, module, key=key_, ungrouped=ungrouped_)
 
     # Map tables. Groups are based on definitions in the schema.
     elif key.endswith("_grp"):
-
         keys = []
         for row in rec:
             keys.extend(row)
@@ -1802,7 +1809,7 @@ def ungroup_columns(rec: dict, key=None, ungrouped=None):
 
         for key, vals in grid.items():
             if any(vals):
-                ungroup_columns(val, key=key, ungrouped=ungrouped)
+                ungroup_columns(vals, module, key=key, ungrouped=ungrouped)
 
     # Map nested tables
     elif key.endswith("_subgrp"):
@@ -1824,13 +1831,19 @@ def ungroup_columns(rec: dict, key=None, ungrouped=None):
 
         for key, vals in grid.items():
             if any(vals):
-                ungroup_columns(val, key=key, ungrouped=ungrouped)
+                ungroup_columns(vals, module, key=key, ungrouped=ungrouped)
+
+    elif isinstance(rec, list):
+        ungrouped_ = [ungroup_columns(val, module, key=key) for val in rec]
+        if not is_tab(full_key):
+            full_key = _map_short_name(orig_module, key)
+        ungrouped[full_key] = [r.get(key, r) for r in ungrouped_]
 
     elif key == "irn" and not isinstance(rec, int):
-        ungrouped[key] = int(rec.split("/")[-1])
+        ungrouped[full_key] = int(rec.split("/")[-1])
 
     else:
-        ungrouped[key] = rec
+        ungrouped[full_key] = rec
 
     return ungrouped
 
@@ -2058,7 +2071,7 @@ def _get_field_info(
 
 
 @cache
-def _map_short_name(module: str, key: str) -> str:
+def _map_short_name(module: str, key: str, prefer_tab: bool = False) -> str:
     """Maps short column name to full name"""
     orig = key
     key = strip_tab(key)
@@ -2076,6 +2089,12 @@ def _map_short_name(module: str, key: str) -> str:
             matches[key + suffix] = _get_field_info(module, key + suffix)
         except KeyError:
             pass
+
+    # Prefer tabular fields if option select
+    if prefer_tab and len(matches) > 1:
+        matches_ = {k: v for k, v in matches.items() if is_tab(v["ColumnName"])}
+        if matches_:
+            matches = matches
 
     # Prefer fields that specify an item name
     if len(matches) > 1:
