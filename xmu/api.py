@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 # str : timeout in minutes for token
 JWT_TIMEOUT = 30
 
+# set : fields to remove from all records
+REMOVE = {"SecCanDelete_tab", "SecCanDisplay_tab", "SecCanEdit_tab"}
+
 
 class EMuAPI:
     """Connects to and queries the EMu API
@@ -511,6 +514,18 @@ class EMuAPI:
                 irn = resp.first()["irn"]
         return self.to_api_irn(module, irn)
 
+    @staticmethod
+    def to_json(records, path=None, ensure_valid=True, **kwargs):
+        """Converts records to JSON"""
+        if ensure_valid:
+            records = [jsonify(r) for r in records]
+        if path:
+            kwargs.setdefault("ensure_ascii", True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(records, f, **kwargs)
+        else:
+            return json.dumps(records, **kwargs)
+
     def _map_attachments(self, module, rec, mapped=None):
         """Maps attached records to IRNs
 
@@ -763,7 +778,7 @@ class EMuAPIResponse:
 
         else:
             try:
-                rec = self.json()["data"]
+                rec = {k: v for k, v in self.json()["data"].items() if k not in REMOVE}
                 if self.resolve_attachments:
                     # Resolving attachments individually is slow, so attachments
                     # are deferred until a number of records have been processed
@@ -781,7 +796,11 @@ class EMuAPIResponse:
                         # efficient
                         records = []
                         for match in resp.json()["matches"]:
-                            rec = match["data"]
+                            rec = {
+                                k: v
+                                for k, v in match["data"].items()
+                                if k not in REMOVE
+                            }
                             if self.resolve_attachments:
                                 # Resolving attachments individually is slow, so
                                 # attachments are deferred until a number of records
@@ -861,7 +880,7 @@ class EMuAPIResponse:
                 )
             else:
                 if "@error" in self._json:
-                    raise ValueError(f"Error: {self._json}")
+                    raise ValueError(self._json)
         return self._json
 
     def records(self):
@@ -1038,49 +1057,50 @@ class DeferredAttachment:
             except TypeError:
                 key = self.select
             deferred = self.__class__._deferred.pop((self.module, key))
-            records = self.api.search(
-                module=self.module,
-                select=self.select,
-                filter_={"irn": list(deferred)},
-                limit=len(deferred),
-            ).records()
-
-            # Convert IRN to integer if records have not been parsed already
-            try:
-                records = {int(k.split("/")[-1]): v for k, v in records.items()}
-            except AttributeError:
-                pass
-
-            for irn, rec in deferred.items():
+            irns = list(deferred)
+            for i in range(0, len(irns) + 1, 500):
                 try:
-                    rec._data = records[irn]
-                except KeyError:
-                    # Records where SecRecordStatus does not equal Active are not
-                    # returned correctly by the search but can still be retrieved
-                    # by IRN
-                    rec._data = self.api.retrieve(
-                        self.module, irn, select=self.select
-                    ).first()
+                    records = self.api.search(
+                        module=self.module,
+                        select=self.select,
+                        filter_={"irn": irns[i : i + 500]},
+                        limit=len(deferred),
+                    ).records()
+                except ValueError:
+                    records = {}
+
+                # Convert IRN to integer for lookup
+                try:
+                    records = {int(k.split("/")[-1]): v for k, v in records.items()}
+                except AttributeError:
+                    pass
+
+                for irn, rec in deferred.items():
+                    try:
+                        rec._data = records[irn]
+                    except KeyError:
+                        pass
+
+        # Records that do not match the Base Defaults are not returned by the search
+        # and can only be retrieved by IRN
+        missed = {k: v for k, v in deferred.items() if not v._data}
+        if missed:
+            print(
+                f"{len(missed):,}/{len(deferred):,} records in {self.module} could"
+                f" not be resolved using search (ex. {list(missed)[:10]})"
+            )
+            i = 0
+            for irn, rec in missed.items():
+                resp = self.api.retrieve(self.module, irn, select=self.select)
+                rec._data = resp.first()
+                i += 1
+                if hasattr(resp, "from_cache") and not resp.from_cache:
+                    print(f" Resolved {irn} ({i:,}/{len(missed):,})")
+                elif not i % 1000:
+                    print(f" {i:,}/{len(missed):,} records retrieved by IRN")
+            print(f" {i:,}/{len(missed):,} records retrieved by IRN")
 
         return self
-
-
-class APIEncoder(json.JSONEncoder):
-    """Encodes objects for the EMu REST API"""
-
-    def default(self, o: Any) -> str:
-        if isinstance(o, dict):
-            return dict(o)
-        if isinstance(o, list):
-            return list(o)
-        if isinstance(o, EMuFloat) and not isinstance(o, EMuCoord):
-            return o.to_number(False)
-        if isinstance(o, int):
-            return o
-        try:
-            return o.emu_str()
-        except AttributeError:
-            return str(o)
 
 
 @cache
@@ -1554,6 +1574,18 @@ def emu_escape(val: str) -> str:
     return val
 
 
+def resolve_all_attachments():
+    """Resolve all deferred attachments"""
+    while DeferredAttachment._deferred:
+        for key in list(DeferredAttachment._deferred):
+            for obj in DeferredAttachment._deferred[key].values():
+                try:
+                    obj.resolve()
+                except ValueError as exc:
+                    print(exc)
+                break
+
+
 def resolve_attachments(rec, as_dict=True):
     """Recursively resolves all attachments in a record"""
     if isinstance(rec, DeferredAttachment):
@@ -1618,6 +1650,52 @@ def _infer_mode(val: Any) -> str | None:
         else:
             return mode
     return None
+
+
+def jsonify(obj: Any, parents: list = None):
+    """Sanitizes an object to include only JSON-valid values
+
+    Parameters
+    ----------
+    obj : Any
+        An API object to sanitize. For the initial call, this must be a dict.
+    parents : list[str]
+        the list of records that contain the current object. Omitted from the
+        initial function call.
+
+    Returns
+    -------
+    dict
+        an object with JSON-safe values
+    """
+    if parents is None:
+        parents = []
+
+    if isinstance(obj, dict):
+        return {k: jsonify(v, parents) for k, v in obj.items()}
+
+    if isinstance(obj, (list, tuple)):
+        return [jsonify(v, parents) for v in obj]
+
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return obj
+
+    if isinstance(obj, EMuFloat) and not isinstance(obj, EMuCoord):
+        return obj.to_number(False)
+
+    if isinstance(obj, DeferredAttachment):
+        if obj.verbatim in parents or obj._data is None:
+            return obj.verbatim
+        else:
+            parents.append(obj.verbatim)
+            sanitized = {k: jsonify(v, parents) for k, v in obj._data.items()}
+            parents.pop()
+            return sanitized
+
+    try:
+        return obj.emu_str()
+    except AttributeError:
+        return str(obj)
 
 
 def _isinstance(val: Any, obj: object) -> bool:
