@@ -1384,9 +1384,15 @@ class EMuRecord(dict):
             except (KeyError, TypeError) as exc:
                 # Handle API responses
                 try:
-                    self.update(ungroup_columns(resolve_attachments(rec)))
-                except:
-                    raise exc
+                    resolved = resolve_attachments(rec)
+                    ungrouped = ungroup_columns(resolved, module)
+                    self.update(ungrouped)
+                except KeyError as exc:
+                    if "xxhash" in str(exc):
+                        del ungrouped["xxhash"]
+                    self.update(ungrouped)
+                except TypeError:
+                    raise
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({pformat(self)})"
@@ -1429,6 +1435,8 @@ class EMuRecord(dict):
         # Catch a key containing illegal characters
         if not re.match(r"\w+$", strip_mod(key)):
             raise ValueError(f"Invalid key: {key} (module={_get_module(self)})")
+        if key == "_id":
+            key = "irn"
         super().__setitem__(key, _coerce_values(self, val, key))
 
     def get(self, key: Hashable, default: Any = None) -> Any:
@@ -1899,8 +1907,17 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
     # Simplify IRN-only references
     if is_ref(field):
         # Simplify IRN-only references to integers
-        if isinstance(child, dict) and list(child) == ["irn"]:
-            child = child["irn"]
+        if isinstance(child, dict):
+            if list(child) == ["irn"]:
+                child = child["irn"]
+            elif len(child) == 1:
+                for key, val in child.items():
+                    if is_ref(key) and isinstance(val, str):
+                        child = val
+
+        # Convert API-style IRNs to integers
+        if isinstance(child, str) and re.match("emu:/[a-z]+/e[a-z]+/\d+$", child):
+            child = child.split("/")[-1]
 
         # Interpret integers in reference fields as IRNs
         try:
@@ -1970,6 +1987,7 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
                 # Handle IRNs returned by the API
                 if (
                     field == "irn"
+                    or is_ref(field)
                     and isinstance(child, str)
                     and child.startswith("emu:")
                 ):
