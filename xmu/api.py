@@ -5,6 +5,7 @@ import logging
 import re
 import time
 import tomllib
+from datetime import datetime
 from functools import cache, cached_property
 from pathlib import Path
 from typing import Any
@@ -1652,13 +1653,15 @@ def _infer_mode(val: Any) -> str | None:
     return None
 
 
-def jsonify(obj: Any, parents: list = None):
+def jsonify(obj: Any, parse_dates: bool = False, parents: list = None):
     """Sanitizes an object to include only JSON-valid values
 
     Parameters
     ----------
     obj : Any
         An API object to sanitize. For the initial call, this must be a dict.
+    parse_dates : bool:
+        Whether to parse ISO dates given as strings
     parents : list[str]
         the list of records that contain the current object. Omitted from the
         initial function call.
@@ -1672,10 +1675,18 @@ def jsonify(obj: Any, parents: list = None):
         parents = []
 
     if isinstance(obj, dict):
-        return {k: jsonify(v, parents) for k, v in obj.items()}
+        return {k: jsonify(v, parse_dates, parents) for k, v in obj.items()}
 
     if isinstance(obj, (list, tuple)):
-        return [jsonify(v, parents) for v in obj]
+        return [jsonify(v, parse_dates, parents) for v in obj]
+
+    if parse_dates:
+        if isinstance(obj, EMuDate):
+            return obj.value
+        try:
+            return datetime.strptime(obj, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            pass
 
     if isinstance(obj, (str, int, float, bool)) or obj is None:
         return obj
@@ -1688,7 +1699,9 @@ def jsonify(obj: Any, parents: list = None):
             return obj.verbatim
         else:
             parents.append(obj.verbatim)
-            sanitized = {k: jsonify(v, parents) for k, v in obj._data.items()}
+            sanitized = {
+                k: jsonify(v, parse_dates, parents) for k, v in obj._data.items()
+            }
             parents.pop()
             return sanitized
 
