@@ -745,11 +745,11 @@ class EMuAPIResponse:
         self,
         response: requests.Response,
         api: EMuAPI,
-        select: list[str] | dict[dict] = None,
+        select: list[str | dict] | dict[dict] = None,
         autopage: bool = None,
     ):
         self.api = api
-        self.select = select
+        self.select = _select_as_dict(select)
         self.autopage = api.autopage if autopage is None else autopage
         self.resolve_attachments = True
         self._first_only = False
@@ -952,7 +952,7 @@ class EMuAPIResponse:
                 try:
                     select = self.select[key]
                 except (KeyError, TypeError):
-                    select = {}
+                    select = None
                 if isinstance(val, (list, tuple)):
                     vals = []
                     for val in val:
@@ -1002,6 +1002,8 @@ class DeferredAttachment:
         self.verbatim = val
         self.module, self.irn = val.split("/")[-2:]
         self.irn = int(self.irn)
+        if not select:
+            select = api.config["api_defaults"].get(self.module)
         self.select = select
         try:
             key = tuple(sorted(select))
@@ -1724,7 +1726,7 @@ def _prep_select(select: dict | list = None) -> str:
     """Expands list of fields to the format used by the EMu API"""
     if select is None:
         select = []
-    select = list(select)
+    select = [list(s)[0] if isinstance(s, dict) else s for s in select]
     if "id" not in select:
         select.insert(0, "id")
     param = ",".join([_prep_field(f) for f in select])
@@ -2141,3 +2143,30 @@ def _params(req):
             pass
         params[key] = val
     return params
+
+
+def _select_as_dict(select):
+    """Reformats a select statement to use the dict format
+
+    Valid select statements include:
+    - ["Field", "FieldRef"] (in which case refs used defaults)
+    - ["Field": {"FieldRef: ["Field"]}]
+    - {"Field": None, "FieldRef": {"Field": None}}
+
+    Table fields work the same as atomic or reference fields.
+
+    Select values are mapped to the third format.
+    """
+    if isinstance(select, dict):
+        for key, val in select.items():
+            if val is not None:
+                select[key] = _select_as_dict(val)
+    elif isinstance(select, list):
+        dct = {}
+        for item in select:
+            if isinstance(item, dict):
+                dct.update(_select_as_dict(item))
+            else:
+                dct[item] = None
+        return dct
+    return select

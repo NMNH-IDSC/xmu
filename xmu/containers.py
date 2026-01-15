@@ -80,6 +80,7 @@ class EMuConfig(MutableMapping):
             EMuColumn,
             EMuGrid,
             EMuRow,
+            EMuAPI,
         ]
         self._config = None
 
@@ -130,11 +131,12 @@ class EMuConfig(MutableMapping):
             "calculated_fields": (
                 {},
                 (
-                    "Calculated fields as {module: {other_field: other_module}}."
-                    " These are unit conversions that appear in grids that can"
-                    " be omitted from imports."
+                    "Calculated fields as {module: {group_name: fields}}. These are"
+                    " unit conversions that appear in grids that can be omitted from"
+                    " imports."
                 ),
             ),
+            "api_defaults": ({}, "# API defaults per module as {module: fields}"),
         }
 
         self.load_rcfile()
