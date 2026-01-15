@@ -1575,7 +1575,7 @@ def emu_escape(val: str) -> str:
     return val
 
 
-def resolve_all_attachments():
+def resolve_attachments():
     """Resolve all deferred attachments"""
     while DeferredAttachment._deferred:
         for key in list(DeferredAttachment._deferred):
@@ -1585,20 +1585,6 @@ def resolve_all_attachments():
                 except ValueError as exc:
                     print(exc)
                 break
-
-
-def resolve_attachments(rec, as_dict=True):
-    """Recursively resolves all attachments in a record"""
-    if isinstance(rec, DeferredAttachment):
-        return rec.data if as_dict else rec.resolve()
-    elif isinstance(rec, dict):
-        for key, val in rec.items():
-            rec[key] = resolve_attachments(val, as_dict=as_dict)
-        return rec
-    elif isinstance(rec, list):
-        return [resolve_attachments(val, as_dict=as_dict) for val in rec]
-    else:
-        return rec
 
 
 def is_attachment(key, val):

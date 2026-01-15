@@ -28,7 +28,6 @@ from .api import (
     regex,
     remove,
     replace,
-    resolve_all_attachments,
     resolve_attachments,
     stemmed,
     test,
