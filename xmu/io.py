@@ -944,8 +944,12 @@ def write_group(records: str, path: str, irn: int = None, name: str = None) -> N
     name : str
         the name of the group
     """
+    if not records:
+        raise ValueError("No records to write to XML file")
+
     if not irn and not name:
         raise ValueError("Must specify at least one of irn or name for a group")
+
     rec = records[0].__class__(
         {
             "GroupType": "Static",
