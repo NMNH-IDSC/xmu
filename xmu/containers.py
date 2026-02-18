@@ -1332,6 +1332,8 @@ class EMuRecord(dict):
         class to use for dicts
     list_class : Callable
         class to use for lists
+    projection : list[str]
+        list of top-level fields to include. If omitted, all fields are included.
 
     Attributes
     ----------
@@ -1364,6 +1366,7 @@ class EMuRecord(dict):
         field: str = None,
         dict_class: Callable = None,
         list_class: Callable = None,
+        projection: list[str] = None,
     ):
         self.module = module
         self.field = field
@@ -1381,6 +1384,12 @@ class EMuRecord(dict):
                 rec = json.loads(rec)
             elif isinstance(rec, self.__class__):
                 rec = rec.copy()
+            if projection:
+                rec = {
+                    k: v
+                    for k, v in rec.items()
+                    if k in {"_id", "irn"} or k in projection
+                }
             try:
                 self.update(rec)
             except (KeyError, TypeError) as exc:

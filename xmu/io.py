@@ -36,8 +36,12 @@ class EMuReader:
     ----------
     path : str | Path
         path to a file or directory
-    json_path : str or Path
+    rec_class : dict
+        a dict-like class, usually EMuRecord, to apply to records
+    json_path : str | Path
         path to a JSON file used to cache records for faster reading
+    projection : list[str]
+        list of top-level fields to include. If omitted, all fields are included.
 
     Attributes
     ----------
@@ -64,12 +68,20 @@ class EMuReader:
     schema = None
 
     def __init__(
-        self, path: str | Path, rec_class: Callable = dict, json_path: str | Path = None
+        self,
+        path: str | Path,
+        rec_class: Callable = dict,
+        json_path: str | Path = None,
+        projection: list[str] = None,
     ):
         self.path = str(path)
         self._rec_class = rec_class
         self.json_path = json_path
         self.files = []
+        self.projection = projection
+        if self.projection and "irn" not in self.projection:
+            self.projection.insert(0, "irn")
+
         self.module = None
         self._fields = None
         self._get_files()
@@ -151,7 +163,9 @@ class EMuReader:
                             if parent is not None and parent.startswith("e"):
                                 try:
                                     if self._notify_count >= start:
-                                        yield self._parse(element)
+                                        yield self._parse(
+                                            element, projection=self.projection
+                                        )
                                 finally:
                                     element.clear()
                                     # while element.getprevious() is not None:
@@ -501,13 +515,15 @@ class EMuReader:
             )
             self._notify_start = time.time()
 
-    def _parse(self, xml: etree.Element) -> dict:
+    def _parse(self, xml: etree.Element, projection: list[str] = None) -> dict:
         """Parses a record from XML
 
         Parameters
         ----------
         xml : lxml.etree.Element
             XML representing a single record
+        projection : list[str]
+            list of top-level fields to include. If omitted, all fields are included.
 
         Returns
         -------
@@ -535,6 +551,10 @@ class EMuReader:
                     name = child.get("name")
                     if name is None:
                         name = ""
+
+                    # Limit to fields in the projection if defined
+                    if projection and name not in projection:
+                        continue
 
                     # Field names for reverse attachments are based on the field
                     # name in the linking module and may therefore not follow the
