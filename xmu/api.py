@@ -1764,9 +1764,11 @@ def _is_compiled(obj, parents=None):
             elif parents and parents[-1] == "bool_op":
                 if not re.match(r"data\.[A-Z][a-z]{2}[A-Z]", key):
                     return False
-                return bool(set(vals) & ops)
+                result = bool(set(vals) & ops)
+                return result
             else:
-                return False
+                result = re.match(r"data\.[A-Z][a-z]{2}[A-Z]", key)
+                return result
     else:
         return False
     return True
