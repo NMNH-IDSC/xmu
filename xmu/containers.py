@@ -1764,13 +1764,14 @@ def group_columns(rec, module=None):
                     # subgroup named based on the containing table
                     stripped = strip_tab(key)
                     subgrp = f"{strip_mod(group).replace('_grp', '')}_subgrp"
-                    for i, val in enumerate(row[key]):
-                        try:
-                            row[subgrp][i][stripped] = val
-                        except IndexError:
-                            row[subgrp].append({stripped: val})
-                        except KeyError:
-                            row[subgrp] = [{stripped: val}]
+                    if row[key] is not None:
+                        for i, val in enumerate(row[key]):
+                            try:
+                                row[subgrp][i][stripped] = val
+                            except IndexError:
+                                row[subgrp].append({stripped: val})
+                            except KeyError:
+                                row[subgrp] = [{stripped: val}]
                     del row[key]
                 elif is_tab(key):
                     row[strip_tab(key)] = row[key]
