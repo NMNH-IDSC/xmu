@@ -1395,8 +1395,8 @@ class EMuRecord(dict):
             except (KeyError, TypeError) as exc:
                 # Handle API responses
                 try:
-                    resolved = resolve_attachments(rec)
-                    ungrouped = ungroup_columns(resolved, module)
+                    resolve_attachments()
+                    ungrouped = ungroup_columns(rec, module)
                     self.update(ungrouped)
                 except KeyError as exc:
                     if "xxhash" in str(exc):
