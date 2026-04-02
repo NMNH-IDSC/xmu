@@ -330,18 +330,18 @@ def flatten(obj: dict, path: list = None, result: dict = None) -> dict:
     if path is None:
         path = []
         result = {}
-    if isinstance(obj, dict):
-        for key, val in obj.items():
-            path.append(key)
-            flatten(val, path, result)
-            path.pop()
-    elif isinstance(obj, (list, tuple)):
+    if isinstance(obj, (list, tuple)):
         for i, val in enumerate(obj):
             key = path[-1]
             if is_group(key):
                 path.append(str(i + 1))
             else:
                 path.append(f"{i + 1}.{strip_tab(key)}")
+            flatten(val, path, result)
+            path.pop()
+    elif hasattr(obj, "items"):
+        for key, val in obj.items():
+            path.append(key)
             flatten(val, path, result)
             path.pop()
     else:
