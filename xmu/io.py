@@ -87,7 +87,7 @@ class EMuReader:
         self._get_files()
         self._load_schema()
 
-        # Private attributes used to display notifications
+        # Private attributes used to display progress notifications
         self._job_start = None
         self._job_done = False
         self._notify_start = None
@@ -553,7 +553,11 @@ class EMuReader:
                         name = ""
 
                     # Limit to fields in the projection if defined
-                    if projection and name not in projection:
+                    if (
+                        projection
+                        and name not in projection
+                        and parent_name not in projection
+                    ):
                         continue
 
                     # Field names for reverse attachments are based on the field
