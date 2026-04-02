@@ -27,7 +27,7 @@ from lxml import etree
 import yaml
 
 from .api import EMuAPI, EMuAPIEncoder, resolve_attachments
-from .io import EMuReader
+from .io import EMuCursor, EMuReader
 from .types import EMuCoord, EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
 from .utils import (
     is_group,
@@ -76,6 +76,7 @@ class EMuConfig(MutableMapping):
         self.classes = [
             EMuSchema,
             EMuReader,
+            EMuCursor,
             EMuRecord,
             EMuColumn,
             EMuGrid,
@@ -358,6 +359,7 @@ class EMuSchema(dict):
 
         # Set schema parameter on all classes
         EMuReader.schema = self
+        EMuCursor.schema = self
         EMuRecord.schema = self
         EMuColumn.schema = self
         EMuGrid.schema = self

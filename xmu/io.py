@@ -706,6 +706,113 @@ class EMuReader:
         return tuple(fields)
 
 
+class EMuCursor:
+    """Read records from a Mongo cursor
+
+    Parameters
+    ----------
+    cursor : str | Path
+        a MongoDB cursor
+    rec_class : dict
+        a dict-like class, usually EMuRecord, to apply to records
+    module : str
+        the name of the EMu module
+
+    Attributes
+    ----------
+    path : str | Path
+        path to a file or directory
+    module : str
+        the name of an EMu module
+    """
+
+    #: EMuConfig : module-wide configuration parameters. Set automatically
+    #: when an EMuConfig object is created.
+    #:
+    #: :meta hide-value:
+    config = None
+
+    #: EMuSchema : info about a specific EMu configuration. Set automatically
+    #: when an EMuSchema object is created.
+    #:
+    #: :meta hide-value:
+    schema = None
+
+    def __init__(
+        self,
+        cursor,
+        rec_class: Callable = dict,
+        module: str = None,
+    ):
+        self.cursor = cursor
+        self._rec_class = rec_class
+        self.module = module
+
+        # Private attributes used to display progress notifications
+        self._job_start = None
+        self._job_done = False
+        self._notify_start = None
+        self._notify_count = 0
+
+    def __iter__(self) -> Generator:
+        self._job_start = None
+        self._job_done = False
+        self._notify_start = None
+        self._notify_count = 0
+        for rec in self.cursor:
+            if self._rec_class:
+                rec = self._rec_class(rec, module=self.module)
+            yield rec
+            self._notify_count += 1
+        self._job_done = True
+        if self._job_start:
+            self.report_progress()
+
+    def report_progress(self, by: str = "time", at: int = 5) -> None:
+        """Prints progress notification messages when reading a file
+
+        Parameters
+        ----------
+        by : str
+            either "count" or "time"
+        at : int
+            number of seconds (if by time) or number of records (if by count)
+        """
+        if self._notify_start is None:
+            self._job_start = time.time()
+            self._notify_start = time.time()
+
+        elapsed = time.time() - (
+            self._job_start if self._job_done else self._notify_start
+        )
+        if (
+            self._job_done
+            or by == "time"
+            and elapsed >= at
+            or by == "count"
+            and self._notify_count
+            and not (self._notify_count % at)
+        ):
+            print(
+                "{:,} records processed (t{}={:.1f}s)".format(
+                    self._notify_count, "otal" if self._job_done else "", elapsed
+                )
+            )
+            self._notify_start = time.time()
+
+    def _load_schema(self) -> "EMuSchema":
+        """Tries to load the schema based on the rec_class"""
+        if self.schema is None:
+            try:
+                schema = self._rec_class.schema
+                if schema is None:
+                    # This will also load the configuration
+                    schema = self._rec_class(module=self.module).schema
+            except (AttributeError, ValueError):
+                schema = None
+        return self.schema
+
+
 class FileLike:
     """Open text and zip files using the same interface
 

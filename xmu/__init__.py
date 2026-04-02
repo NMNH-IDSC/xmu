@@ -43,7 +43,15 @@ from .containers import (
     group_columns,
     ungroup_columns,
 )
-from .io import EMuReader, clean_xml, write_csv, write_group, write_import, write_xml
+from .io import (
+    EMuCursor,
+    EMuReader,
+    clean_xml,
+    write_csv,
+    write_group,
+    write_import,
+    write_xml,
+)
 from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
 from .utils import (
     flatten,
