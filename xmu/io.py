@@ -78,7 +78,7 @@ class EMuReader:
         self._rec_class = rec_class
         self.json_path = json_path
         self.files = []
-        self.projection = projection
+        self.projection = projection.copy()
         if self.projection and "irn" not in self.projection:
             self.projection.insert(0, "irn")
 
@@ -536,6 +536,9 @@ class EMuReader:
         else:
             dct = self._rec_class()
 
+        if projection:
+            projection = set(projection)
+
         elements = [(dct, "", xml)]
         while elements:
             new_elems = []
@@ -553,12 +556,10 @@ class EMuReader:
                         name = ""
 
                     # Limit to fields in the projection if defined
-                    if (
-                        projection
-                        and name not in projection
-                        and parent_name not in projection
-                    ):
-                        continue
+                    if projection:
+                        names = {name, parent_name, elem.getparent().get("name")}
+                        if names.isdisjoint(projection):
+                            continue
 
                     # Field names for reverse attachments are based on the field
                     # name in the linking module and may therefore not follow the
