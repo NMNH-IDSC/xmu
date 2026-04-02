@@ -1392,15 +1392,14 @@ class EMuRecord(dict):
                 }
             try:
                 self.update(rec)
-            except (KeyError, TypeError) as exc:
+            except (KeyError, TypeError):
                 # Handle API responses
                 try:
                     resolve_attachments()
                     ungrouped = ungroup_columns(rec, module)
                     self.update(ungrouped)
-                except KeyError as exc:
-                    if "xxhash" in str(exc):
-                        del ungrouped["xxhash"]
+                except KeyError:
+                    raise
                     self.update(ungrouped)
                 except TypeError:
                     raise
@@ -1443,12 +1442,15 @@ class EMuRecord(dict):
             ) from exc
 
     def __setitem__(self, key: Hashable, val: Any) -> None:
-        # Catch a key containing illegal characters
-        if not re.match(r"\w+$", strip_mod(key)):
-            raise ValueError(f"Invalid key: {key} (module={_get_module(self)})")
-        if key == "_id":
-            key = "irn"
-        super().__setitem__(key, _coerce_values(self, val, key))
+        if key != "_id" and key.startswith("_"):
+            super().__setitem__(key, val)
+        else:
+            # Catch a key containing illegal characters
+            if not re.match(r"\w+$", strip_mod(key)):
+                raise ValueError(f"Invalid key: {key} (module={_get_module(self)})")
+            if key == "_id":
+                key = "irn"
+            super().__setitem__(key, _coerce_values(self, val, key))
 
     def get(self, key: Hashable, default: Any = None) -> Any:
         """Overrides the native dict.get method to map unrecognized terms"""
@@ -1566,6 +1568,9 @@ class EMuRecord(dict):
         # Fill in grids and cache row IDs so grids are only checked once
         grids = {}
         for key in list(self):
+            # Omit custom keys
+            if key != "_id" and key.startswith("_"):
+                continue
             if kind == "update":
                 try:
                     grids[key]
@@ -1610,6 +1615,9 @@ class EMuRecord(dict):
                     key = lookup_parent
 
         for key, val in self.items():
+            # Omit custom keys
+            if key != "_id" and key.startswith("_"):
+                continue
             if is_tab(key):
                 # If field is part of a grid, pass row identifiers to the
                 # EMuColumn to_xml() method. These will be used to populate the
