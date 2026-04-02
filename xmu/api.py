@@ -1110,6 +1110,23 @@ class DeferredAttachment:
         return self
 
 
+class EMuAPIEncoder(json.JSONEncoder):
+
+    def default(self, obj: Any) -> str:
+        if isinstance(obj, dict):
+            return dict(obj)
+        if isinstance(obj, list):
+            return list(obj)
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        if isinstance(obj, EMuFloat) and not isinstance(obj, EMuCoord):
+            return obj.to_number(False)
+        try:
+            return obj.emu_str()
+        except AttributeError:
+            return str(obj)
+
+
 @cache
 def attach(val, api, select=None):
     """Creates a DeferredAttachment for the given value
@@ -1663,6 +1680,11 @@ def jsonify(obj: Any, parse_dates: bool = False, parents: list = None):
     dict
         an object with JSON-safe values
     """
+    try:
+        return obj.to_dict(encoder=EMuAPIEncoder)
+    except AttributeError:
+        pass
+
     if parents is None:
         parents = []
 

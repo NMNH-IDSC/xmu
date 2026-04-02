@@ -26,9 +26,9 @@ from warnings import warn
 from lxml import etree
 import yaml
 
-from .api import EMuAPI, resolve_attachments
+from .api import EMuAPI, EMuAPIEncoder, resolve_attachments
 from .io import EMuReader
-from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
+from .types import EMuCoord, EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
 from .utils import (
     is_group,
     is_nesttab,
@@ -1520,7 +1520,7 @@ class EMuRecord(dict):
         """
         return group_columns(self)
 
-    def to_dict(self):
+    def to_dict(self, encoder=None):
         """Converts record to a dict
 
         Returns
@@ -1529,7 +1529,7 @@ class EMuRecord(dict):
             record as dict with all custom data types converted to JSON-serializable
             types
         """
-        return json.loads(self.json())
+        return json.loads(self.json(cls=encoder if encoder else EMuEncoder))
 
     def to_xml(
         self, root: etree.Element | etree.SubElement = None, kind: str = None
@@ -1657,7 +1657,7 @@ class EMuRecord(dict):
         dict
             the record with related columns grouped and attachments resolved
         """
-        mapped = api._map_attachments(self.module, self.to_dict())
+        mapped = api._map_attachments(self.module, self.to_dict(encoder=EMuAPIEncoder))
         return group_columns(mapped, module=self.module)
 
     def to_patch(self, api):
@@ -1717,17 +1717,17 @@ class EMuRecord(dict):
 class EMuEncoder(json.JSONEncoder):
     """Encodes objects using EMuRecord and EMuColumn"""
 
-    def default(self, o: Any) -> str:
-        if isinstance(o, dict):
-            return dict(o)
-        if isinstance(o, list):
-            return list(o)
-        if isinstance(o, int):
-            return o
+    def default(self, obj: Any) -> str:
+        if isinstance(obj, dict):
+            return dict(obj)
+        if isinstance(obj, list):
+            return list(obj)
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
         try:
-            return o.emu_str()
+            return obj.emu_str()
         except AttributeError:
-            return str(o)
+            return str(obj)
 
 
 def group_columns(rec, module=None):
@@ -1749,10 +1749,17 @@ def group_columns(rec, module=None):
     if isinstance(rec, EMuRecord):
         module = rec.module
         rec = rec.to_dict()
+    if not module:
+        raise ValueError("No module specified")
     grouped = {}
     groups = {}
     for key, val in rec.items():
-        field_info = _get_field_info(module, key)
+        try:
+            field_info = _get_field_info(module, key)
+        except KeyError:
+            if not key.startswith("_"):
+                raise
+            field_info = {}
         mod = get_mod(key)
         if mod:
             mod = f"({mod})"
@@ -1862,10 +1869,28 @@ def ungroup_columns(rec: dict, module: str, key=None, ungrouped=None):
                 ungroup_columns(vals, module, key=key, ungrouped=ungrouped)
 
     elif isinstance(rec, list):
-        ungrouped_ = [ungroup_columns(val, module, key=key) for val in rec]
-        if not is_tab(full_key):
+
+        ungrouped_ = []
+        for row in rec:
+            if isinstance(row, list):
+                nested = []
+                for inner_row in row:
+                    nested.append(ungroup_columns(inner_row, module, key=key))
+                ungrouped_.append(nested)
+            else:
+                ungrouped_.append(ungroup_columns(row, module, key=key))
+        if not is_tab(full_key) and key != "_id" and not full_key.startswith("_"):
             full_key = _map_short_name(orig_module, key)
-        ungrouped[full_key] = [r.get(key, r) for r in ungrouped_]
+
+        rows = []
+        for row in ungrouped_:
+            if isinstance(row, list):
+                row = [r.get(key, r.get(full_key, r)) for r in row]
+            else:
+                row = row.get(key, row.get(full_key, row))
+            rows.append(row)
+
+        ungrouped[full_key] = rows
 
     elif key == "irn" and not isinstance(rec, int):
         ungrouped[full_key] = int(rec.split("/")[-1])
