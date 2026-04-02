@@ -836,9 +836,10 @@ class EMuAPIResponse:
                                 f"Could not parse match: {match} from {repr(resp.text)}"
                             ) from exc
                         except NameError:
-                            raise ValueError(
+                            logger.info(
                                 f"No records found: {repr(resp.text)} ({resp.request.url}, {resp.request.body})"
-                            ) from exc
+                            )
+                            break
                     else:
                         # Get the next page
                         if self.autopage and count < resp.hits:
@@ -1790,11 +1791,9 @@ def _is_compiled(obj, parents=None):
             elif parents and parents[-1] == "bool_op":
                 if not re.match(r"data\.[A-Z][a-z]{2}[A-Z]", key):
                     return False
-                result = bool(set(vals) & ops)
-                return result
+                return bool(set(vals) & ops)
             else:
-                result = re.match(r"data\.[A-Z][a-z]{2}[A-Z]", key)
-                return result
+                return bool(re.match(r"data\.[A-Z][a-z]{2}[A-Z]", key))
     else:
         return False
     return True

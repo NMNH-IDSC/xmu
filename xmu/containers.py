@@ -1963,7 +1963,7 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
                         child = val
 
         # Convert API-style IRNs to integers
-        if isinstance(child, str) and re.match("emu:/[a-z]+/e[a-z]+/\d+$", child):
+        if isinstance(child, str) and re.match(r"emu:/[a-z]+/e[a-z]+/\d+$", child):
             child = child.split("/")[-1]
 
         # Interpret integers in reference fields as IRNs
@@ -2049,6 +2049,9 @@ def _coerce_values(parent: EMuRecord | EMuColumn, child: Any, key: str = None) -
                     )
                 ):
                     child = int(EMuFloat(child))
+                # Handle empty values
+                elif not child:
+                    child = None
                 else:
                     raise TypeError(
                         f"Could not coerce to {dtype} ({field}={repr(child)})"
