@@ -42,6 +42,7 @@ from xmu import (
     get_mod,
     get_ref,
     get_tab,
+    group_columns,
     has_mod,
     is_nesttab,
     is_nesttab_inner,
@@ -52,6 +53,7 @@ from xmu import (
     strip_mod,
     strip_tab,
     to_ref,
+    ungroup_columns,
     write_xml,
     write_group,
 )
@@ -90,6 +92,7 @@ use utf8;
 			{
 				ColumnName => 'EmuClientTable1Ref_tab',
 				DataType => 'Text',
+                Location => 'both',
                 RefLink => 'EmuClientTable1Ref_tab'
 
 				ItemName => 'EmuClientTable1Ref',
@@ -98,6 +101,7 @@ use utf8;
 			{
 				ColumnName => 'EmuClientTable2Ref_tab',
 				DataType => 'Integer',
+                Location => 'both',
                 RefLink => 'EmuClientTable2Ref_tab'
 
 				ItemName => 'EmuClientTable2Ref',
@@ -106,6 +110,7 @@ use utf8;
 			{
 				ColumnName => 'EmuDate0',
 				DataType => 'Date',
+                Location => 'both',
 
                 ItemName => 'EmuDate0',
 				ItemFields =>
@@ -119,6 +124,7 @@ use utf8;
 			{
 				ColumnName => 'EmuEmpty',
 				DataType => 'Text',
+                Location => 'both',
 
                 ItemName => 'EmuEmpty',
 				ItemCount => 1,
@@ -128,6 +134,7 @@ use utf8;
 			{
 				ColumnName => 'EmuInteger',
 				DataType => 'Integer',
+                Location => 'both',
 
                 ItemName => 'EmuInteger',
 			},
@@ -135,6 +142,7 @@ use utf8;
 			{
 				ColumnName => 'EmuFloat',
 				DataType => 'Float',
+                Location => 'both',
 
                 ItemName => 'EmuFloat',
 			},
@@ -142,6 +150,7 @@ use utf8;
 			{
 				ColumnName => 'EmuLatitude',
 				DataType => 'Latitude',
+                Location => 'both',
 
 				ItemName => 'EmuLatitude',
 			},
@@ -149,6 +158,7 @@ use utf8;
 			{
 				ColumnName => 'EmuLongitude',
 				DataType => 'Longitude',
+                Location => 'both',
 
 				ItemName => 'EmuLongitude',
 			},
@@ -156,6 +166,7 @@ use utf8;
 			{
 				ColumnName => 'EmuLookupParent',
 				DataType => 'Text',
+                Location => 'both',
                 LookupName => 'Lookup',
 				LookupParent => 'SecLookupRoot',
 
@@ -165,6 +176,7 @@ use utf8;
 			{
 				ColumnName => 'EmuLookupChild',
 				DataType => 'Text',
+                Location => 'both',
                 LookupName => 'Lookup',
 				LookupParent => 'EmuLookupParent',
 
@@ -174,6 +186,7 @@ use utf8;
 			{
 				ColumnName => 'EmuLookupGrandchild',
 				DataType => 'Text',
+                Location => 'both',
                 LookupName => 'Lookup',
 				LookupParent => 'EmuLookupChild',
 
@@ -183,6 +196,7 @@ use utf8;
 			{
 				ColumnName => 'EmuNestedTable_nesttab',
 				DataType => 'Text',
+                Location => 'both',
 
                 ItemName => 'EmuNestedTable',
 			},
@@ -190,11 +204,13 @@ use utf8;
 			{
 				ColumnName => 'EmuNotVisible',
 				DataType => 'Text',
+                Location => 'both',
 			},
             'EmuRef' =>
 			{
 				ColumnName => 'EmuRef',
 				DataType => 'Integer',
+                Location => 'both',
                 RefTable => 'eref',
 
                 ItemName => 'EmuRef',
@@ -209,6 +225,7 @@ use utf8;
 			{
 				ColumnName => 'EmuRefView_tab',
 				DataType => 'Text',
+                Location => 'client',
                 RefColumn => 'EMuRefOnly'
                 RefLink => 'EmuRef_tab'
 
@@ -218,6 +235,7 @@ use utf8;
 			{
 				ColumnName => 'EmuNestedRef_nesttab',
 				DataType => 'Integer',
+                Location => 'both',
                 RefTable => 'eref'
 
 				ItemName => 'EmuNestedRef',
@@ -226,6 +244,7 @@ use utf8;
 			{
 				ColumnName => 'EmuRef_tab',
 				DataType => 'Integer',
+                Location => 'both',
                 RefTable => 'eref'
 
 				ItemName => 'EmuRef',
@@ -234,6 +253,7 @@ use utf8;
 			{
 				ColumnName => 'EmuTable_tab',
 				DataType => 'Text',
+                Location => 'both',
 
                 ItemName => 'EmuTable',
 			},
@@ -241,6 +261,7 @@ use utf8;
 			{
 				ColumnName => 'EmuTable_tab',
 				DataType => 'Text',
+                Location => 'both',
 
                 ItemName => 'EmuTableUngrouped',
 			},
@@ -248,6 +269,7 @@ use utf8;
 			{
 				ColumnName => 'EmuText',
 				DataType => 'Text',
+                Location => 'both',
 
 				ItemName => 'EMuText',
 			},
@@ -255,6 +277,7 @@ use utf8;
 			{
 				ColumnName => 'EmuTime0',
 				DataType => 'Time',
+                Location => 'both',
 
                 ItemName => 'EMuTime',
 				ItemFields =>
@@ -268,6 +291,7 @@ use utf8;
 			{
 				ColumnName => 'irn',
 				DataType => 'Integer',
+                Location => 'both',
 
 				ItemName => 'IRN',
 			},
@@ -313,6 +337,7 @@ use utf8;
 			{
 				ColumnName => 'EmuRefOnly',
 				DataType => 'Text',
+                Location => 'both',
 
 				ItemName => 'EmuRefOnly',
 			},
@@ -320,6 +345,7 @@ use utf8;
 			{
 				ColumnName => 'EmuRefTable_tab',
 				DataType => 'Text',
+                Location => 'both',
 
 				ItemName => 'EmuRefTable',
 			},
@@ -327,6 +353,7 @@ use utf8;
             {
                 ColumnName => 'EmuReflexiveRef',
 				DataType => 'Integer',
+                Location => 'both',
                 RefTable => 'eref',
 
                 ItemName => 'EmuReflexiveRef',
@@ -335,6 +362,7 @@ use utf8;
 			{
 				ColumnName => 'irn',
 				DataType => 'Integer',
+                Location => 'both',
 
 				ItemName => 'IRN',
 			},
@@ -549,6 +577,7 @@ def test_config(config_file, output_dir):
         "lookup_no_autopopulate",
         "reverse_attachments",
         "calculated_fields",
+        "api_defaults",
     ]
     assert config["schema_path"] == str(output_dir / "schema.pl")
     assert config["make_visible"] == []
@@ -591,6 +620,7 @@ def test_schema_get(schema_file):
     assert schema.get("Schema.emain.columns.EmuDate0") == {
         "ColumnName": "EmuDate0",
         "DataType": "Date",
+        "Location": "both",
         "ItemName": "EmuDate0",
         "ItemFields": [[8, 2, 2], [8, 2, 2], [8, 2, 2]],
         "XMuGroup": [
@@ -599,8 +629,8 @@ def test_schema_get(schema_file):
             "EmuTable_tab",
             "EmuRef_tab",
         ],
-        "XMuGroupName": "EmuGrid3_grp",
         "XMuGroupOrig": ["EmuDate0", "EmuRef_tab"],
+        "XMuGroupName": "EmuGrid3_grp",
     }
     assert schema.get("Schema.emain.columns.EmuInvalid") is None
 
@@ -615,106 +645,95 @@ def test_schema_fields(schema_file):
             {
                 "ColumnName": "EmuClientTable1Ref_tab",
                 "DataType": "Text",
-                "ItemName": "EmuClientTable1Ref",
+                "Location": "both",
                 "RefLink": "EmuClientTable1Ref_tab",
-                "XMuGroup": [
-                    "EmuClientTable1Ref_tab",
-                ],
+                "ItemName": "EmuClientTable1Ref",
+                "XMuGroup": ["EmuClientTable1Ref_tab"],
+                "XMuGroupOrig": ["EmuClientTable1Ref_tab"],
                 "XMuGroupName": "EmuClientGrid_grp",
-                "XMuGroupOrig": [
-                    "EmuClientTable1Ref_tab",
-                ],
             },
             {
                 "ColumnName": "EmuClientTable2Ref_tab",
                 "DataType": "Integer",
-                "ItemName": "EmuClientTable2Ref",
+                "Location": "both",
                 "RefLink": "EmuClientTable2Ref_tab",
+                "ItemName": "EmuClientTable2Ref",
             },
             {
                 "ColumnName": "EmuDate0",
                 "DataType": "Date",
-                "ItemFields": [
-                    [
-                        8,
-                        2,
-                        2,
-                    ],
-                    [
-                        8,
-                        2,
-                        2,
-                    ],
-                    [
-                        8,
-                        2,
-                        2,
-                    ],
-                ],
+                "Location": "both",
                 "ItemName": "EmuDate0",
+                "ItemFields": [[8, 2, 2], [8, 2, 2], [8, 2, 2]],
                 "XMuGroup": [
                     "EmuDate0",
                     "EmuNestedTable_nesttab",
                     "EmuTable_tab",
                     "EmuRef_tab",
                 ],
+                "XMuGroupOrig": ["EmuDate0", "EmuRef_tab"],
                 "XMuGroupName": "EmuGrid3_grp",
-                "XMuGroupOrig": [
-                    "EmuDate0",
-                    "EmuRef_tab",
-                ],
             },
             {
                 "ColumnName": "EmuEmpty",
                 "DataType": "Text",
+                "Location": "both",
+                "ItemName": "EmuEmpty",
                 "ItemCount": 1,
                 "ItemFields": 15,
-                "ItemName": "EmuEmpty",
             },
             {
                 "ColumnName": "EmuInteger",
                 "DataType": "Integer",
+                "Location": "both",
                 "ItemName": "EmuInteger",
             },
             {
                 "ColumnName": "EmuFloat",
                 "DataType": "Float",
+                "Location": "both",
                 "ItemName": "EmuFloat",
             },
             {
                 "ColumnName": "EmuLatitude",
                 "DataType": "Latitude",
+                "Location": "both",
                 "ItemName": "EmuLatitude",
             },
             {
                 "ColumnName": "EmuLongitude",
                 "DataType": "Longitude",
+                "Location": "both",
                 "ItemName": "EmuLongitude",
             },
             {
                 "ColumnName": "EmuLookupParent",
                 "DataType": "Text",
-                "ItemName": "EmuLookupParent",
+                "Location": "both",
                 "LookupName": "Lookup",
                 "LookupParent": "SecLookupRoot",
+                "ItemName": "EmuLookupParent",
             },
             {
                 "ColumnName": "EmuLookupChild",
                 "DataType": "Text",
-                "ItemName": "EmuLookupChild",
+                "Location": "both",
                 "LookupName": "Lookup",
                 "LookupParent": "EmuLookupParent",
+                "ItemName": "EmuLookupChild",
             },
             {
                 "ColumnName": "EmuLookupGrandchild",
                 "DataType": "Text",
-                "ItemName": "EmuLookupGrandchild",
+                "Location": "both",
                 "LookupName": "Lookup",
                 "LookupParent": "EmuLookupChild",
+                "ItemName": "EmuLookupGrandchild",
             },
             {
                 "ColumnName": "EmuNestedTable_nesttab",
                 "DataType": "Text",
+                "Location": "both",
                 "ItemName": "EmuNestedTable",
                 "XMuGroup": [
                     "EmuDate0",
@@ -722,67 +741,52 @@ def test_schema_fields(schema_file):
                     "EmuTable_tab",
                     "EmuRef_tab",
                 ],
+                "XMuGroupOrig": ["EmuDate0", "EmuNestedTable_nesttab"],
                 "XMuGroupName": "EmuGrid1_grp",
-                "XMuGroupOrig": [
-                    "EmuDate0",
-                    "EmuNestedTable_nesttab",
-                ],
             },
-            {
-                "ColumnName": "EmuNotVisible",
-                "DataType": "Text",
-            },
+            {"ColumnName": "EmuNotVisible", "DataType": "Text", "Location": "both"},
             {
                 "ColumnName": "EmuRef",
                 "DataType": "Integer",
-                "ItemFields": [
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                    10,
-                ],
-                "ItemName": "EmuRef",
+                "Location": "both",
                 "RefTable": "eref",
+                "ItemName": "EmuRef",
+                "ItemFields": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
             },
             {
                 "ColumnName": "EmuRefView_tab",
                 "DataType": "Text",
-                "ItemName": "EmuRefView",
+                "Location": "client",
                 "RefColumn": "EMuRefOnly",
                 "RefLink": "EmuRef_tab",
+                "ItemName": "EmuRefView",
             },
             {
                 "ColumnName": "EmuNestedRef_nesttab",
                 "DataType": "Integer",
-                "ItemName": "EmuNestedRef",
+                "Location": "both",
                 "RefTable": "eref",
+                "ItemName": "EmuNestedRef",
             },
             {
                 "ColumnName": "EmuRef_tab",
                 "DataType": "Integer",
-                "ItemName": "EmuRef",
+                "Location": "both",
                 "RefTable": "eref",
+                "ItemName": "EmuRef",
                 "XMuGroup": [
                     "EmuDate0",
                     "EmuRef_tab",
                     "EmuNestedTable_nesttab",
                     "EmuTable_tab",
                 ],
+                "XMuGroupOrig": ["EmuRef_tab"],
                 "XMuGroupName": "EmuMapToAttachment_grp",
-                "XMuGroupOrig": [
-                    "EmuRef_tab",
-                ],
             },
             {
                 "ColumnName": "EmuTable_tab",
                 "DataType": "Text",
+                "Location": "both",
                 "ItemName": "EmuTable",
                 "XMuGroup": [
                     "EmuDate0",
@@ -790,47 +794,32 @@ def test_schema_fields(schema_file):
                     "EmuNestedTable_nesttab",
                     "EmuRef_tab",
                 ],
+                "XMuGroupOrig": ["EmuDate0", "EmuTable_tab"],
                 "XMuGroupName": "EmuGrid2_grp",
-                "XMuGroupOrig": [
-                    "EmuDate0",
-                    "EmuTable_tab",
-                ],
             },
             {
                 "ColumnName": "EmuTable_tab",
                 "DataType": "Text",
+                "Location": "both",
                 "ItemName": "EmuTableUngrouped",
             },
             {
                 "ColumnName": "EmuText",
                 "DataType": "Text",
+                "Location": "both",
                 "ItemName": "EMuText",
             },
             {
                 "ColumnName": "EmuTime0",
                 "DataType": "Time",
-                "ItemFields": [
-                    [
-                        8,
-                        2,
-                        2,
-                    ],
-                    [
-                        8,
-                        2,
-                        2,
-                    ],
-                    [
-                        8,
-                        2,
-                        2,
-                    ],
-                ],
+                "Location": "both",
                 "ItemName": "EMuTime",
+                "ItemFields": [[8, 2, 2], [8, 2, 2], [8, 2, 2]],
             },
             {
                 "ColumnName": "irn",
                 "DataType": "Integer",
+                "Location": "both",
                 "ItemName": "IRN",
             },
             {
@@ -845,29 +834,29 @@ def test_schema_fields(schema_file):
             {
                 "ColumnName": "EmuRefOnly",
                 "DataType": "Text",
+                "Location": "both",
                 "ItemName": "EmuRefOnly",
             },
             {
                 "ColumnName": "EmuRefTable_tab",
                 "DataType": "Text",
+                "Location": "both",
                 "ItemName": "EmuRefTable",
-                "XMuGroup": [
-                    "EmuRefTable_tab",
-                ],
+                "XMuGroup": ["EmuRefTable_tab"],
+                "XMuGroupOrig": ["EmuRefTable_tab"],
                 "XMuGroupName": "EmuGridInReference_grp",
-                "XMuGroupOrig": [
-                    "EmuRefTable_tab",
-                ],
             },
             {
                 "ColumnName": "EmuReflexiveRef",
                 "DataType": "Integer",
-                "ItemName": "EmuReflexiveRef",
+                "Location": "both",
                 "RefTable": "eref",
+                "ItemName": "EmuReflexiveRef",
             },
             {
                 "ColumnName": "irn",
                 "DataType": "Integer",
+                "Location": "both",
                 "ItemName": "IRN",
             },
         ],
@@ -1416,6 +1405,31 @@ def test_read_with_limit(output_dir):
     assert records == [{"irn": "1000002"}, {"irn": "1000003"}]
 
 
+@pytest.mark.parametrize(
+    "projection",
+    [["EmuText", "EmuDate0"], ["EmuRef", "EmuTime0"], ["EmuTable_tab", "EmuRef_tab"]],
+)
+def test_read_with_projection(projection, xml_file, expected_rec):
+    if "irn" not in projection:
+        projection = ["irn"] + projection
+    for rec in EMuReader(xml_file, projection=projection):
+        assert rec == {k: expected_rec[k] for k in projection}
+
+
+@pytest.mark.parametrize(
+    "projection",
+    [["EmuText", "EmuDate0"], ["EmuRef", "EmuTime0"], ["EmuTable_tab", "EmuRef_tab"]],
+)
+def test_rec_with_projection(projection, xml_file, expected_rec):
+    if "irn" not in projection:
+        projection = ["irn"] + projection
+    reader = EMuReader(xml_file)
+    for rec in reader:
+        assert EMuRecord(rec, module=reader.module, projection=projection) == EMuRecord(
+            {k: expected_rec[k] for k in projection}, module=reader.module
+        )
+
+
 def test_rec_round_trip(rec, output_dir):
     path = str(output_dir / "import.xml")
     write_xml([rec], path, kind="emu")
@@ -1429,6 +1443,12 @@ def test_len(output_dir):
     path = output_dir / "xmldata_len.xml"
     write_xml(records, path, kind="emu")
     assert len(EMuReader(path)) == 100
+
+
+def test_group_columns(rec):
+    grouped = group_columns(rec, module=rec.module)
+    ungrouped = ungroup_columns(grouped, module=rec.module)
+    assert ungrouped == rec
 
 
 @pytest.mark.parametrize(
@@ -2394,9 +2414,6 @@ def test_to_ref(field, expected):
     assert to_ref(field) == expected
 
 
-# field, tab, ref, mod
-
-
 @pytest.mark.parametrize(
     "field,expected",
     [
@@ -2569,7 +2586,8 @@ def test_emuconfig_str(rec):
     config["schema_path"] = None
     assert (
         str(config)
-        == """EMuConfig({'calculated_fields': {},
+        == """EMuConfig({'api_defaults': {},
+ 'calculated_fields': {},
  'groups': {'emain': {'EmuGrid_tab': ['EmuDate0',
                                       'EmuNestedTable_nesttab',
                                       'EmuTable_tab',
