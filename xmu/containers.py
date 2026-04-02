@@ -26,9 +26,17 @@ from warnings import warn
 from lxml import etree
 import yaml
 
-from .api import EMuAPI, EMuAPIEncoder, resolve_attachments
+from .api import EMuAPI, resolve_attachments
 from .io import EMuCursor, EMuReader
-from .types import EMuCoord, EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime
+from .types import (
+    EMuCoord,
+    EMuDate,
+    EMuEncoder,
+    EMuFloat,
+    EMuLatitude,
+    EMuLongitude,
+    EMuTime,
+)
 from .utils import (
     is_group,
     is_nesttab,
@@ -1659,7 +1667,7 @@ class EMuRecord(dict):
         dict
             the record with related columns grouped and attachments resolved
         """
-        mapped = api._map_attachments(self.module, self.to_dict(encoder=EMuAPIEncoder))
+        mapped = api._map_attachments(self.module, self.to_dict(encoder=EMuEncoder))
         return group_columns(mapped, module=self.module)
 
     def to_patch(self, api):
@@ -1714,22 +1722,6 @@ class EMuRecord(dict):
                 else:
                     entry["value"] = api._map_to_irn(self.module, col, entry["value"])
         return self.module, irn, patch
-
-
-class EMuEncoder(json.JSONEncoder):
-    """Encodes objects using EMuRecord and EMuColumn"""
-
-    def default(self, obj: Any) -> str:
-        if isinstance(obj, dict):
-            return dict(obj)
-        if isinstance(obj, list):
-            return list(obj)
-        if isinstance(obj, (str, int, float, bool)) or obj is None:
-            return obj
-        try:
-            return obj.emu_str()
-        except AttributeError:
-            return str(obj)
 
 
 def group_columns(rec, module=None):

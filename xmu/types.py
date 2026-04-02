@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from calendar import monthrange
@@ -637,7 +638,8 @@ class EMuCoord(EMuFloat):
             parts[0] += 1
             parts[1] = 0
 
-        return f"{' '.join([re.sub(r"\.0*$", "", str(p)) for p in parts])} {self.hemisphere}"
+        coords = " ".join([re.sub(r"\.0*$", "", str(p)) for p in parts])
+        return f"{coords} {self.hemisphere}"
 
     def to_dec(self, unc_m: int = None) -> str:
         """Expresses coordinate as a decimal
@@ -1313,3 +1315,21 @@ class EMuTime(EMuType):
     def tzinfo(self) -> str:
         """Time zone info for the parsed time"""
         return self.value.tzinfo
+
+
+class EMuEncoder(json.JSONEncoder):
+    """Encodes objects using EMuRecord and EMuColumn"""
+
+    def default(self, obj: Any) -> str:
+        if isinstance(obj, dict):
+            return dict(obj)
+        if isinstance(obj, list):
+            return list(obj)
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        if isinstance(obj, EMuFloat) and not isinstance(obj, EMuCoord):
+            return obj.to_number(False)
+        try:
+            return obj.emu_str()
+        except AttributeError:
+            return str(obj)

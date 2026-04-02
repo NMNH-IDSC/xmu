@@ -35,7 +35,6 @@ from .api import (
 from .containers import (
     EMuColumn,
     EMuConfig,
-    EMuEncoder,
     EMuGrid,
     EMuRow,
     EMuRecord,
@@ -52,7 +51,15 @@ from .io import (
     write_import,
     write_xml,
 )
-from .types import EMuDate, EMuFloat, EMuLatitude, EMuLongitude, EMuTime, EMuType
+from .types import (
+    EMuDate,
+    EMuEncoder,
+    EMuFloat,
+    EMuLatitude,
+    EMuLongitude,
+    EMuTime,
+    EMuType,
+)
 from .utils import (
     flatten,
     get_mod,
