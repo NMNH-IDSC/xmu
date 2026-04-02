@@ -66,13 +66,17 @@ class EMuAPI:
         username: str = None,
         password: str = None,
         autopage: bool = None,
-        config_path: str | Path = "emurestapi.toml",
+        config_path: str | Path = None,
     ):
+        # Use global config file if no connection info found
+        if not any([url, tenant, username, password, config_path]):
+            config_path = Path("~/.xmu/emurestapi.toml").expanduser()
         self.config_path = config_path
         try:
             with open(self.config_path, "rb") as f:
                 config = tomllib.load(f)["params"]
         except FileNotFoundError:
+            raise
             pass
         else:
             if not url:
