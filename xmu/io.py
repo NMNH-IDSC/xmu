@@ -78,9 +78,10 @@ class EMuReader:
         self._rec_class = rec_class
         self.json_path = json_path
         self.files = []
-        self.projection = projection.copy()
+
+        self.projection = projection
         if self.projection and "irn" not in self.projection:
-            self.projection.insert(0, "irn")
+            self.projection = ["irn"] + projection
 
         self.module = None
         self._fields = None
